@@ -71,10 +71,11 @@ export default async function ReconciliationPage() {
       <SectionTitle>Saque da HUB</SectionTitle>
       <Panel className="px-4 py-4">
         <p className="mb-3 text-sm text-muted-foreground">
-          Com a validação de saque ligada no Asaas, toda transferência que não é repasse é recusada. Para retirar a receita, autorize aqui o valor exato e faça o saque no painel do Asaas em até 30 minutos.
+          Com a validação de saque ligada no Asaas, toda transferência que não é repasse é recusada. Para retirar a receita, autorize aqui o valor exato e a chave de destino e faça o saque no painel do Asaas em até 30 minutos.
         </p>
         <ActionForm action={authorizeWithdrawal} successMessage="Saque autorizado por 30 minutos." className="max-w-md">
           <MoneyField label="Valor exato do saque (R$)" name="amount" />
+          <Field label="Chave Pix de destino (conta da HUB)" name="pix_key" autoComplete="off" />
           <Field label="Finalidade" name="note" placeholder="ex.: retirada de receita de novembro" />
           <SubmitButton variant="secondary">Autorizar saque</SubmitButton>
         </ActionForm>

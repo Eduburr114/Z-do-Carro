@@ -6,9 +6,9 @@ Uma única aplicação web instalável no celular (PWA), com três áreas:
 
 | Área | Quem usa | O que faz |
 |---|---|---|
-| `/cliente` | Motorista | Cadastra o veículo, pede o serviço com preço fechado, acompanha as etapas e o prestador no mapa, aprova ou recusa adicionais, paga e avalia |
-| `/prestador` | Profissional autônomo ou empresa | Envia documentos e o credenciamento, aceita o contrato, fica disponível quando quer, aceita ou recusa pedidos vendo o valor líquido, executa e acompanha os ganhos |
-| `/hub` | Equipe da HUB | Analisa documentos e credenciamentos serviço a serviço, suspende com motivo e revê contestações, confirma pagamentos por Pix, registra repasses, ajusta preços, comissão e a equipe |
+| `/cliente` | Motorista | Cadastra o veículo, vê o total antes de confirmar, paga por Pix (QR Code ou copia e cola, confirmação automática), acompanha as etapas e o prestador no mapa, aprova e paga adicionais, confirma o serviço ou abre disputa, e avalia |
+| `/prestador` | Profissional autônomo ou empresa | Envia documentos e o credenciamento, aceita o contrato, fica disponível quando quer, aceita ou recusa pedidos vendo o valor líquido, executa, cadastra a chave Pix e acompanha os repasses |
+| `/hub` | Equipe da HUB (administração e financeiro) | Analisa credenciamentos, suspende e revê contestações; ajusta catálogo, preços por região, promoções, comissões por categoria/prestador/campanha e a equipe; no **Financeiro**: painel de receitas, pagamentos, repasses, disputas, contas Pix, estornos e conciliação |
 
 Também há, para todos: avisos dentro do aplicativo e por push, tela de conta, recuperação de senha por e-mail, Termos de Uso e Política de Privacidade (minutas) com aceite gravado no cadastro.
 
@@ -37,7 +37,9 @@ O texto da minuta 1.0 está em `supabase/contracts/credenciamento-v1.0.txt` e é
 
 Next.js 16 (App Router, Server Components e Server Actions), React 19, TypeScript, Tailwind CSS 4, Supabase (PostgreSQL e Auth), Web Push e Leaflet com OpenStreetMap.
 
-A regra central é: **o banco decide**. Nenhuma tabela é acessível direto pela API; tudo passa por funções que conferem quem chama e o papel (`supabase/migrations`). Os tokens de sessão ficam em cookies `httpOnly` e não há cliente Supabase no navegador. A chave secreta do Supabase é usada no servidor só para o limite de tentativas e para a fila de push.
+A regra central é: **o banco decide**. Nenhuma tabela é acessível direto pela API; tudo passa por funções que conferem quem chama e o papel (`supabase/migrations`). Os tokens de sessão ficam em cookies `httpOnly` e não há cliente Supabase no navegador. A chave secreta do Supabase é usada só no servidor: limite de tentativas, filas de push e e-mail, webhooks e rotina financeira.
+
+Pagamentos, repasses, e-mails e segurança financeira estão em **[docs/FINANCEIRO.md](docs/FINANCEIRO.md)**: cobrança Pix pelo Asaas com confirmação por webhook, repasse automático em 7 dias depois da conclusão confirmada, razão contábil em partidas dobradas, estornos, disputas e e-mails pelo Resend.
 
 ## Rodar no computador (sem Docker)
 
@@ -57,12 +59,12 @@ Abra http://localhost:3000. Contas fictícias (senha `demonstracao-local-2026`):
 | `novato@demo.invalid` | Prestador aguardando análise |
 | `hub@demo.invalid` | Equipe da HUB |
 
-Para ver o fluxo, abra duas janelas: peça um serviço como cliente e, na outra, entre como `ze@demo.invalid` e toque em "Ficar disponível". O emulador não envia e-mails: o link de recuperação de senha aparece no terminal.
+Para ver o fluxo, abra duas janelas: peça um serviço como cliente e, na outra, entre como `ze@demo.invalid` e toque em "Ficar disponível". O emulador local também imita o Asaas e o Resend (nada é cobrado nem enviado de verdade): para "pagar" o Pix gerado, rode `curl -X POST http://127.0.0.1:54321/asaas/local/pay/ID_DA_COBRANCA` (o id aparece no Pix copia e cola, depois de `EMULADOR-LOCAL-`). Os e-mails ficam em http://127.0.0.1:54321/resend/local/outbox e o link de recuperação de senha aparece no terminal. A rotina financeira roda com `curl -H 'Authorization: Bearer cron-local-somente-desenvolvimento-0123456789' localhost:3000/api/cron/financeiro`.
 
 ## Testes
 
 ```bash
-pnpm test                    # 25 testes de banco: acesso, credenciamento, documentos, contrato, atendimento, Pix, avisos, suspensão
+pnpm test                    # 73 testes: banco (acesso, credenciamento, atendimento, financeiro) e integração com os emuladores do Asaas e do Resend
 pnpm build && pnpm test:e2e  # 3 roteiros no navegador, com cliente, prestador e HUB ao mesmo tempo
 pnpm check                   # lint, tipos, testes de banco e build
 ```
@@ -73,13 +75,14 @@ Os testes de banco chamam as funções como a API faria (papel `authenticated` e
 
 1. **Supabase.** Crie um projeto (região São Paulo, `sa-east-1`) e instale o banco: cole o conteúdo de `supabase/instalar.sql` no editor SQL e execute (ou use `supabase db push`, que aplica as migrações de `supabase/migrations`). Em Authentication:
    - **URL Configuration:** defina a *Site URL* com o endereço do aplicativo e inclua `https://SEU-ENDERECO/auth/confirmar` nas *Redirect URLs*.
-   - **Email Templates → Reset Password:** use o link `{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery`, para a recuperação funcionar em qualquer aparelho.
-   - **Confirmação de e-mail e SMTP:** o envio de e-mail embutido do Supabase aceita pouquíssimas mensagens por hora. Para operar, configure um SMTP próprio. Sem ele, desligue *Confirm email* para o cadastro não depender de e-mail.
+   - **Email Templates:** cole os modelos em português de `supabase/templates` (confirmação, recuperação e troca de e-mail).
+   - **SMTP:** configure o SMTP do Resend (`smtp.resend.com`, porta 465, usuário `resend`). O envio embutido do Supabase aceita pouquíssimas mensagens por hora. Detalhes, DNS (SPF, DKIM, DMARC) e limites em [docs/FINANCEIRO.md](docs/FINANCEIRO.md#8-e-mails-supabase-auth--resend).
 2. **Fly.io (hospedagem escolhida).** Instale o `flyctl`, faça `fly auth login` e depois, na raiz do projeto:
 
    ```bash
    fly launch --no-deploy --copy-config --name ze-do-carro --region gru
    fly secrets set SUPABASE_SECRET_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=... NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+   fly secrets set ASAAS_API_KEY=... ASAAS_WEBHOOK_TOKEN=... ASAAS_TRANSFER_VALIDATION_TOKEN=... CRON_SECRET=... RESEND_API_KEY=...
    fly deploy
    ```
 
@@ -92,13 +95,16 @@ Os testes de banco chamam as funções como a API faria (papel `authenticated` e
    ```
 
    Depois abra `/cadastro?tipo=hub` e crie a conta informando o código. Ele vale uma única vez; os próximos acessos da equipe são gerados em Ajustes.
-5. **Recebimento.** Em Ajustes, cadastre a chave Pix da HUB. Sem ela o aplicativo fica em modo demonstração, com pagamento simulado.
+5. **Pagamentos e repasses.** Siga [docs/FINANCEIRO.md](docs/FINANCEIRO.md#7-configurar-o-asaas-sandbox-primeiro): conta de **sandbox** do Asaas, webhook, validação de saque e o agendador da rotina financeira (a cada 5 minutos). Sem o Asaas, use em Ajustes o recebimento por Pix manual, em que só a equipe financeira confirma, com o identificador da transação.
+6. **Equipe.** Em Ajustes → Equipe, separe os papéis de administração e de financeiro.
 
 ## O que falta antes de operar com clientes reais
 
+- **Mudança de regra.** O pagamento passou a ser feito antes do atendimento (o valor fica retido até a conclusão confirmada). O contrato de credenciamento e os Termos precisam refletir isso, junto com o prazo de confirmação, a disputa e o estorno.
 - **Revisão jurídica.** O contrato publicado é a minuta 1.0, com `[CNPJ]`, `[endereço]`, `[PERCENTUAL]` e `[PRAZO]` por preencher; as linhas de assinatura em papel foram omitidas porque o aceite é eletrônico. Os Termos de Uso e a Política de Privacidade também são minutas, com campos entre colchetes. Ao fechar os textos, publique o contrato como nova versão e atualize `src/lib/terms.ts`.
-- **Provedor de pagamentos.** O Pix com confirmação manual serve a um piloto. Para volume, integre um provedor com cobrança e divisão automáticas; as funções `pay_request`, `claim_payment` e `admin_confirm_payment` são o ponto de troca.
-- **Preços e comissão.** Os preços do catálogo, a comissão de 20% e o repasse em 7 dias são valores de partida, não uma recomendação comercial.
+- **Asaas em produção.** A integração foi testada contra um emulador local. Antes de usar dinheiro real: valide no sandbox os pontos marcados como "confirmar" em `src/lib/payments/asaas.ts` e confirme com o Asaas que o modelo (recebimento na conta da HUB e repasse a terceiros em D+7) é aceito para a sua conta, com as exigências regulatórias da intermediação.
+- **Resend.** Verifique o domínio (SPF, DKIM, DMARC) e confira o envio real.
+- **Preços e comissão.** Os preços do catálogo, a comissão de 20%, o repasse em 7 dias e a confirmação automática em 24 horas são valores de partida, não uma recomendação comercial. O abastecimento emergencial entra desativado.
 - **Push em aparelhos reais.** O envio foi testado até a fila do servidor; falta conferir a entrega em um Android e em um iPhone (no iPhone, só com o aplicativo instalado na Tela de Início, iOS 16.4 ou mais novo).
 - **Mapa.** Usa os quadros públicos do OpenStreetMap, adequados a baixo volume. Para escala, contrate um provedor de mapas.
 - **Documentos.** Ficam no banco de dados (até 3 MB cada, 12 por prestador). Com muitos prestadores, mova para um armazenamento de arquivos.

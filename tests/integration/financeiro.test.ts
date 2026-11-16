@@ -220,7 +220,11 @@ describe('estorno e repasse ponta a ponta', () => {
     await mock.settle()
     expect(mock.transfers.get(intrusa.id)?.status).toBe('CANCELLED')
     // Saque autorizado pela equipe financeira passa.
-    await db.rpc(hub, 'finance_authorize_withdrawal', { p_amount: 10, p_note: 'Retirada de receita para a conta da HUB' })
+    await db.rpc(hub, 'finance_authorize_withdrawal', { p_amount: 10, p_note: 'Retirada de receita para a conta da HUB', p_pix_key: 'hub@exemplo.invalid' })
+    // Mesmo valor para outra chave não passa.
+    const carona = await deps.gateway!.createPixTransfer({ valueCents: 1000, pixKey: 'golpe@exemplo.invalid', pixKeyType: 'EMAIL', description: 'x', externalReference: 'saque' })
+    await mock.settle()
+    expect(mock.transfers.get(carona.id)?.status).toBe('CANCELLED')
     const saque = await deps.gateway!.createPixTransfer({ valueCents: 1000, pixKey: 'hub@exemplo.invalid', pixKeyType: 'EMAIL', description: 'x', externalReference: 'saque' })
     await mock.settle()
     expect(mock.transfers.get(saque.id)?.status).toBe('DONE')

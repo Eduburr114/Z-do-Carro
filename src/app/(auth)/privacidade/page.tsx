@@ -21,6 +21,9 @@ export default function PrivacyPage() {
           <li><strong>Localização do prestador</strong>: registrada somente enquanto ele está disponível ou em atendimento, para oferecer pedidos próximos e mostrar o deslocamento ao cliente.</li>
           <li><strong>Credenciamento do prestador</strong> (CPF ou CNPJ, documentos, certificados, fotos de equipamentos, aceite do contrato com data, hora e endereço IP): verificar a qualificação e comprovar o aceite.</li>
           <li><strong>Pedidos, pagamentos e avaliações</strong>: executar o contrato, calcular comissões e repasses, cumprir obrigações fiscais e controlar a qualidade.</li>
+          <li><strong>CPF ou CNPJ do pagador</strong>: exigido pelo emissor da cobrança Pix. Fica separado do perfil e só é usado para emitir as suas cobranças.</li>
+          <li><strong>Chave Pix e nome do titular do prestador</strong>: pagar os repasses. A conta precisa estar no CPF/CNPJ do credenciamento.</li>
+          <li><strong>E-mail</strong>: além do acesso, enviar avisos de pagamento, conclusão, estorno e repasse.</li>
         </ul>
       </section>
       <section>
@@ -32,7 +35,7 @@ export default function PrivacyPage() {
         <ul>
           <li><strong>Prestador que aceitou o seu pedido</strong>: recebe nome, telefone, placa e endereço do atendimento. Antes do aceite, os prestadores veem apenas o serviço, o modelo do veículo e o local.</li>
           <li><strong>Cliente</strong>: vê o nome, o telefone, a nota e a distância do prestador que aceitou o pedido.</li>
-          <li><strong>Fornecedores de tecnologia</strong> que hospedam o aplicativo e o banco de dados, e o provedor de pagamentos, sob contrato e apenas para essas finalidades.</li>
+          <li><strong>Fornecedores de tecnologia</strong>, sob contrato e apenas para essas finalidades: hospedagem do aplicativo e do banco de dados; o provedor de pagamentos (Asaas), que recebe nome, CPF/CNPJ, e-mail e telefone do pagador para emitir a cobrança Pix, e a chave Pix do prestador para o repasse; e o serviço de envio de e-mails (Resend), que recebe o endereço de e-mail e o conteúdo do aviso.</li>
           <li><strong>Autoridades</strong>, quando houver obrigação legal ou ordem judicial.</li>
         </ul>
         <p>Não vendemos dados pessoais. O prestador é proibido de usar os dados dos clientes para fins diferentes do atendimento.</p>
@@ -40,6 +43,7 @@ export default function PrivacyPage() {
       <section>
         <h2>5. Por quanto tempo guardamos</h2>
         <p>Guardamos os dados enquanto a conta estiver ativa e, depois, pelos prazos necessários para cumprir obrigações legais e resguardar direitos: [prazos de retenção a definir com o jurídico]. Registros de acesso são mantidos pelo prazo do Marco Civil da Internet.</p>
+        <p>Minimização aplicada pelo sistema: o QR Code do Pix é apagado um dia após a cobrança deixar de estar aberta; o endereço e o conteúdo dos e-mails enviados são apagados em 180 dias; o conteúdo dos avisos recebidos do provedor de pagamentos é apagado em 180 dias. Os registros financeiros (valores, datas e identificadores das transações) são mantidos pelo prazo das obrigações fiscais e contábeis.</p>
       </section>
       <section>
         <h2>6. Seus direitos</h2>

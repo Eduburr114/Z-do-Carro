@@ -2117,6 +2117,8 @@ create index payout_attempts_payout on public.payout_attempts (payout_id, id);
 create table public.withdrawal_authorizations (
   id uuid primary key default gen_random_uuid(),
   amount_cents bigint not null check (amount_cents > 0),
+  -- Chave Pix de destino: o saque só é aprovado para ela.
+  pix_key text not null check (length(btrim(pix_key)) >= 3),
   note text not null check (length(btrim(note)) >= 5),
   created_by uuid not null references public.profiles (id),
   created_at timestamptz not null default now(),
@@ -4082,7 +4084,9 @@ begin
     return v_result;
   end if;
   select * into w from public.withdrawal_authorizations
-  where used_at is null and expires_at > now() and amount_cents = p_value_cents order by created_at limit 1 for update skip locked;
+  where used_at is null and expires_at > now() and amount_cents = p_value_cents and p_pix_key is not null
+    and regexp_replace(lower(pix_key), '[^a-z0-9@._-]', '', 'g') = regexp_replace(lower(p_pix_key), '[^a-z0-9@._-]', '', 'g')
+  order by created_at limit 1 for update skip locked;
   if w.id is not null then
     update public.withdrawal_authorizations set used_at = now(), transfer_id = p_transfer_id where id = w.id;
     perform app.audit('transfer_approved', 'withdrawal_authorizations', w.id::text, jsonb_build_object('transfer_id', p_transfer_id, 'value_cents', p_value_cents));
@@ -4625,7 +4629,7 @@ begin
   end if;
 end $$;
 
-create function public.finance_authorize_withdrawal(p_amount numeric, p_note text) returns uuid
+create function public.finance_authorize_withdrawal(p_amount numeric, p_note text, p_pix_key text) returns uuid
 language plpgsql security definer set search_path = ''
 as $$
 declare
@@ -4634,8 +4638,9 @@ declare
 begin
   if p_amount is null or p_amount <= 0 or p_amount > 1000000 then perform app.fail('invalid_amount', 'Informe um valor válido.'); end if;
   if length(btrim(coalesce(p_note, ''))) < 5 then perform app.fail('note_required', 'Informe a finalidade do saque.'); end if;
-  insert into public.withdrawal_authorizations (amount_cents, note, created_by, expires_at)
-  values (app.cents(p_amount), btrim(p_note), v_uid, now() + interval '30 minutes') returning id into v_id;
+  if length(btrim(coalesce(p_pix_key, ''))) < 3 then perform app.fail('pix_key_required', 'Informe a chave Pix de destino do saque.'); end if;
+  insert into public.withdrawal_authorizations (amount_cents, pix_key, note, created_by, expires_at)
+  values (app.cents(p_amount), btrim(p_pix_key), btrim(p_note), v_uid, now() + interval '30 minutes') returning id into v_id;
   return v_id;
 end $$;
 

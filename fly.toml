@@ -1,6 +1,8 @@
 # Configuração do Fly.io para o Zé do Carro.
 # Criar o app (uma vez): fly launch --no-deploy --copy-config --name ze-do-carro --region gru
 # Segredos (nunca no arquivo): fly secrets set SUPABASE_SECRET_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=...
+#   e, para o financeiro: ASAAS_API_KEY=... ASAAS_WEBHOOK_TOKEN=... ASAAS_TRANSFER_VALIDATION_TOKEN=...
+#   CRON_SECRET=... RESEND_API_KEY=... (veja docs/FINANCEIRO.md)
 app = "ze-do-carro"
 primary_region = "gru"
 
@@ -12,6 +14,9 @@ primary_region = "gru"
 
 [env]
   SESSION_IDLE_MINUTES = "30"
+  APP_URL = "https://ze-do-carro.fly.dev"
+  ASAAS_ENV = "sandbox"
+  EMAIL_FROM = "Zé do Carro <nao-responda@seu-dominio.com.br>"
 
 [http_service]
   internal_port = 3000

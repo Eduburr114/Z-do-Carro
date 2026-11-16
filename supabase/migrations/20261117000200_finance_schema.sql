@@ -336,6 +336,8 @@ create index payout_attempts_payout on public.payout_attempts (payout_id, id);
 create table public.withdrawal_authorizations (
   id uuid primary key default gen_random_uuid(),
   amount_cents bigint not null check (amount_cents > 0),
+  -- Chave Pix de destino: o saque só é aprovado para ela.
+  pix_key text not null check (length(btrim(pix_key)) >= 3),
   note text not null check (length(btrim(note)) >= 5),
   created_by uuid not null references public.profiles (id),
   created_at timestamptz not null default now(),

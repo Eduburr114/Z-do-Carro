@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f .env.local ] || cp tools/local-stack/env.local.example .env.local
 pnpm -s local:db
-pnpm -s local:api &
+MOCK_ASAAS_VALIDATION_URL=http://localhost:3000/api/webhooks/asaas/saque pnpm -s local:api &
 API_PID=$!
 trap 'kill $API_PID 2>/dev/null || true' EXIT
 pnpm -s dev

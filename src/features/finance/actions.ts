@@ -70,8 +70,8 @@ export const reviewAccount = formAction(
 )
 
 export const authorizeWithdrawal = formAction(
-  z.object({ amount: zMoney, note: note(5, 'Informe a finalidade do saque.') }),
-  async ({ amount, note }, { rpc }) => {
-    await rpc('finance_authorize_withdrawal', { p_amount: amount, p_note: note })
+  z.object({ amount: zMoney, pix_key: z.string().trim().min(3, 'Informe a chave Pix de destino.').max(140), note: note(5, 'Informe a finalidade do saque.') }),
+  async ({ amount, pix_key, note }, { rpc }) => {
+    await rpc('finance_authorize_withdrawal', { p_amount: amount, p_pix_key: pix_key, p_note: note })
   },
 )
