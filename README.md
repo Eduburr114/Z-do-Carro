@@ -75,7 +75,15 @@ Os testes de banco chamam as funções como a API faria (papel `authenticated` e
    - **URL Configuration:** defina a *Site URL* com o endereço do aplicativo e inclua `https://SEU-ENDERECO/auth/confirmar` nas *Redirect URLs*.
    - **Email Templates → Reset Password:** use o link `{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery`, para a recuperação funcionar em qualquer aparelho.
    - **Confirmação de e-mail e SMTP:** o envio de e-mail embutido do Supabase aceita pouquíssimas mensagens por hora. Para operar, configure um SMTP próprio. Sem ele, desligue *Confirm email* para o cadastro não depender de e-mail.
-2. **Vercel.** Importe o repositório e defina as variáveis de `.env.example`. O `vercel.json` já fixa a região `gru1` (São Paulo), ao lado do banco.
+2. **Fly.io (hospedagem escolhida).** Instale o `flyctl`, faça `fly auth login` e depois, na raiz do projeto:
+
+   ```bash
+   fly launch --no-deploy --copy-config --name ze-do-carro --region gru
+   fly secrets set SUPABASE_SECRET_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=... NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+   fly deploy
+   ```
+
+   Antes do `fly deploy`, troque em `fly.toml` a URL e a chave pública (`NEXT_PUBLIC_*`) pelos valores do Supabase: elas são gravadas no build. A chave secreta nunca vai no arquivo.
 3. **Avisos push.** Gere o par de chaves com `pnpm exec web-push generate-vapid-keys` e preencha as três variáveis `VAPID`.
 4. **Primeiro acesso da HUB.** No editor SQL, grave um código de ativação (letras maiúsculas e números):
 

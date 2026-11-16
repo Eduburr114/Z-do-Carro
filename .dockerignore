@@ -1,0 +1,8 @@
+node_modules
+.next
+.env*
+!.env.example
+.local-stack
+test-results
+playwright-report
+supabase/instalar.sql
