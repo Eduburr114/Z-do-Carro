@@ -88,3 +88,35 @@ export const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4
 
 export const anon: Claims = { role: 'anon' }
 export const service: Claims = { role: 'service_role' }
+
+/** CPF fictício com dígitos verificadores válidos (só para testes). */
+export const CPF_TESTE = '52998224725'
+
+let fakeExternal = 0
+/**
+ * Simula o caminho oficial de um Pix: o cliente pede a cobrança, o servidor
+ * registra a cobrança criada no provedor e, depois, o estado RECEIVED vindo da
+ * API do provedor (o que o webhook dispara). Nada disso o cliente consegue
+ * fazer sozinho.
+ */
+export async function pagarPix(db: TestDb, cliente: TestUser, requestId: string, extraId: string | null = null, opts: { value?: number } = {}) {
+  await db.rpc(cliente, 'save_payment_tax_id', { p_tax_id: CPF_TESTE })
+  const start = await db.rpc<{ action: string; payment_id: string; amount_cents: number; attempt_key: string }>(cliente, 'payment_start', {
+    p_request_id: requestId, p_extra_id: extraId,
+  })
+  const externalId = `pay_teste_${++fakeExternal}`
+  if (start.action === 'create') {
+    await db.rpc(service, 'payment_charge_created', {
+      p_payment_id: start.payment_id, p_external_id: externalId, p_status: 'PENDING',
+      p_pix_payload: '00020126pix-copia-e-cola-ficticio', p_pix_qr_image: 'iVBORw0KGgo=', p_pix_expires_at: new Date(Date.now() + 3600_000).toISOString(),
+    })
+  }
+  const [{ amount_cents, external_id }] = await db.admin<{ amount_cents: string; external_id: string }>(
+    'select amount_cents, external_id from public.payments where id = $1', [start.payment_id])
+  const value = opts.value ?? Number(amount_cents)
+  const result = await db.rpc<{ result: string }>(service, 'payment_sync', {
+    p_external_id: external_id, p_external_reference: start.attempt_key ?? null, p_status: 'RECEIVED',
+    p_value_cents: value, p_net_cents: value - 99, p_deleted: false,
+  })
+  return { paymentId: start.payment_id, externalId: external_id, result: result.result }
+}

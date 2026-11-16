@@ -10,5 +10,8 @@ cd "$(dirname "$0")/.."
   for file in supabase/migrations/*.sql; do
     printf '\n-- >>> %s\n' "$(basename "$file")"
     cat "$file"
+    # Cada migração em uma transação própria (um valor novo de enum só pode ser
+    # usado depois do COMMIT). Fora de transação, o COMMIT só gera um aviso.
+    printf '\ncommit;\n'
   done
 } > supabase/instalar.sql

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { TestDb, PNG_1PX, anon, service, type TestUser } from './harness'
+import { TestDb, PNG_1PX, anon, pagarPix, service, type TestUser } from './harness'
 
 /**
  * O caminho completo de um atendimento e as garantias do contrato de
@@ -42,11 +42,15 @@ async function aceitarContrato(user: TestUser) {
   const contrato = await db.rpc<{ id: string }>(user, 'current_contract')
   await db.rpc(user, 'accept_contract', { p_version_id: contrato.id, p_ip: '203.0.113.7', p_user_agent: 'teste' })
 }
-const pedir = (code: string, onde = SLZ) =>
-  db.rpc<string>(cliente, 'create_request', {
+// Cria o pedido e (por padrão) paga pelo caminho oficial: só pedido pago é oferecido.
+const pedir = async (code: string, onde = SLZ, pagar = true) => {
+  const id = await db.rpc<string>(cliente, 'create_request', {
     p_service_id: servicos.find((s) => s.code === code)!.id, p_vehicle_id: veiculo,
     p_address: 'Av. dos Holandeses, 100 — Calhau', p_lat: onde.lat, p_lng: onde.lng,
   })
+  if (pagar) await pagarPix(db, cliente, id)
+  return id
+}
 
 beforeAll(async () => {
   db = await TestDb.create()
@@ -124,6 +128,12 @@ describe('credenciamento e contrato', () => {
 describe('atendimento do início ao fim', () => {
   let pedido: string
 
+  it('pedido sem pagamento confirmado não é oferecido a ninguém', async () => {
+    const naoPago = await pedir('troca_pneu', SLZ, false)
+    expect(await db.rpc(ze, 'open_requests')).toEqual([])
+    expect(await db.rpc(cliente, 'request_detail', { p_id: naoPago })).toMatchObject({ status: 'awaiting_payment', financial_status: 'pending_payment' })
+    await db.rpc(cliente, 'cancel_request', { p_id: naoPago })
+  })
   it('a oferta mostra preço, comissão e líquido, sem dados pessoais do cliente', async () => {
     pedido = await pedir('troca_pneu')
     const [oferta] = await db.rpc<Pedido[]>(ze, 'open_requests')
@@ -166,24 +176,24 @@ describe('atendimento do início ao fim', () => {
     await expect(db.rpc(ze, 'decide_extra', { p_extra_id: extra, p_approve: true })).rejects.toMatchObject(denied)
     await db.rpc(cliente, 'decide_extra', { p_extra_id: extra, p_approve: true })
     await db.rpc(cliente, 'decide_extra', { p_extra_id: recusado, p_approve: false })
+    // Adicional aprovado precisa estar pago antes da conclusão.
+    await expect(db.rpc(ze, 'advance_request', { p_id: pedido, p_to: 'completed' })).rejects.toMatchObject({ message: 'extra_unpaid' })
+    await pagarPix(db, cliente, pedido, extra)
     await db.rpc(ze, 'advance_request', { p_id: pedido, p_to: 'completed' })
     const fim = await db.rpc<Pedido>(cliente, 'request_detail', { p_id: pedido })
     expect(fim).toMatchObject({ status: 'completed', total: 100, commission_amount: 20, provider_net: 80 })
   })
-  it('pagamento agenda o repasse; avaliação entra na nota; a HUB repassa', async () => {
-    await expect(db.rpc(cliente, 'create_request', { p_service_id: servicos[0].id, p_vehicle_id: veiculo, p_address: 'Rua Um, 10' }))
-      .rejects.toMatchObject({ message: 'payment_pending' })
-    await db.rpc(cliente, 'pay_request', { p_id: pedido })
-    await expect(db.rpc(cliente, 'pay_request', { p_id: pedido })).rejects.toMatchObject({ message: 'cannot_pay' })
+  it('a confirmação do cliente agenda o repasse; a avaliação entra na nota', async () => {
+    await expect(db.rpc(ze, 'confirm_completion', { p_id: pedido })).rejects.toMatchObject(denied)
+    await db.rpc(cliente, 'confirm_completion', { p_id: pedido })
+    await expect(db.rpc(cliente, 'confirm_completion', { p_id: pedido })).rejects.toMatchObject({ message: 'cannot_confirm' })
+    expect(await db.rpc(cliente, 'request_detail', { p_id: pedido })).toMatchObject({ financial_status: 'payout_scheduled', payout: { status: 'scheduled', amount: 80 } })
     await db.rpc(cliente, 'review_request', { p_id: pedido, p_rating: 5, p_comment: 'Rápido e cuidadoso' })
     await expect(db.rpc(cliente, 'review_request', { p_id: pedido, p_rating: 1 })).rejects.toMatchObject({ message: 'already_reviewed' })
     const ganhos = await db.rpc<{ summary: Record<string, number> }>(ze, 'provider_jobs')
     expect(ganhos.summary).toMatchObject({ completed: 1, to_receive: 80, received: 0 })
-    await expect(db.rpc(ze, 'admin_mark_payout', { p_request_id: pedido })).rejects.toMatchObject(denied)
-    await db.rpc(hub, 'admin_mark_payout', { p_request_id: pedido })
-    expect((await db.rpc<{ summary: Record<string, number> }>(ze, 'provider_jobs')).summary).toMatchObject({ to_receive: 0, received: 80 })
     const geral = await db.rpc<{ requests: Record<string, number>; rating: { average: number } }>(hub, 'admin_overview')
-    expect(geral.requests).toMatchObject({ completed: 1, gross: 100, commission: 20 })
+    expect(geral.requests).toMatchObject({ completed: 1 })
     expect(geral.rating.average).toBe(5)
   })
   it('mudar a comissão vale só para pedidos novos', async () => {
@@ -238,8 +248,8 @@ describe('documentos', () => {
 describe('avisos', () => {
   it('cada parte recebe os avisos do que lhe diz respeito', async () => {
     const titulos = async (user: TestUser) => (await db.rpc<{ title: string }[]>(user, 'my_notifications')).map((n) => n.title)
-    expect(await titulos(cliente)).toEqual(expect.arrayContaining(['Prestador confirmado', 'Prestador a caminho', 'Orçamento adicional', 'Serviço concluído', 'Buscando outro prestador']))
-    expect(await titulos(ze)).toEqual(expect.arrayContaining(['Credenciamento aprovado', 'Novo pedido: Troca de pneu', 'Adicional aprovado', 'Pagamento confirmado', 'Repasse realizado', 'Credenciamento suspenso', 'Suspensão encerrada']))
+    expect(await titulos(cliente)).toEqual(expect.arrayContaining(['Pagamento confirmado', 'Pague o adicional', 'Prestador confirmado', 'Prestador a caminho', 'Orçamento adicional', 'Serviço concluído', 'Buscando outro prestador', 'Estorno solicitado']))
+    expect(await titulos(ze)).toEqual(expect.arrayContaining(['Credenciamento aprovado', 'Novo pedido: Troca de pneu', 'Adicional aprovado', 'Adicional pago', 'Serviço confirmado', 'Repasse agendado', 'Credenciamento suspenso', 'Suspensão encerrada']))
     expect(await titulos(hub)).toEqual(expect.arrayContaining(['Credenciamento para analisar', 'Suspensão contestada']))
     // Ler marca como lido.
     expect((await db.rpc<{ unread: number }>(ze, 'my_access')).unread).toBe(0)
@@ -249,6 +259,7 @@ describe('avisos', () => {
     await db.rpc(service, 'push_take') // esvazia o que ficou dos testes anteriores
     await db.rpc(cliente, 'save_push_subscription', { p_endpoint: 'https://push.example.invalid/abc', p_p256dh: 'p'.repeat(87), p_auth: 'a'.repeat(22) })
     const id = await pedir('troca_oleo')
+    await db.rpc(service, 'push_take') // avisos do pagamento
     await db.rpc(ze, 'accept_request', { p_id: id })
     const fila = await db.rpc<{ title: string; subscriptions: { endpoint: string }[] }[]>(service, 'push_take')
     expect(fila).toHaveLength(1)
@@ -260,24 +271,28 @@ describe('avisos', () => {
   })
 })
 
-describe('pagamento por Pix confirmado pela HUB', () => {
-  it('com chave Pix, o cliente avisa e só a HUB confirma', async () => {
+describe('Pix manual: o cliente avisa e só a equipe financeira confirma', () => {
+  it('confirmação exige o papel financeiro e o identificador da transação', async () => {
     await expect(db.rpc(hub, 'admin_save_pix', { p_pix_key: 'pix@hub.invalid', p_pix_holder: '' })).rejects.toMatchObject({ message: 'invalid_pix' })
     await db.rpc(hub, 'admin_save_pix', { p_pix_key: 'pix@hub.invalid', p_pix_holder: 'HUB Tecnologia Ltda' })
-    expect(await db.rpc(cliente, 'payment_info')).toMatchObject({ mode: 'pix', pix_key: 'pix@hub.invalid' })
-    const id = await pedir('troca_pneu')
-    await db.rpc(ze, 'accept_request', { p_id: id })
-    for (const to of ['en_route', 'in_progress', 'completed']) await db.rpc(ze, 'advance_request', { p_id: id, p_to: to })
-    await expect(db.rpc(cliente, 'pay_request', { p_id: id })).rejects.toMatchObject({ message: 'pix_required' })
+    const regras = { p_commission_percent: 20, p_payout_days: 7, p_confirm_hours: 24, p_payment_window_minutes: 30, p_platform_fee: 0, p_min_charge_amount: 5, p_payout_mode: 'asaas', p_account_cooldown_hours: 24 }
+    await db.rpc(hub, 'admin_save_finance_settings', { ...regras, p_payment_provider: 'manual' })
+    expect(await db.rpc(cliente, 'payment_info')).toMatchObject({ mode: 'manual', pix_key: 'pix@hub.invalid' })
+    const id = await pedir('troca_pneu', SLZ, false)
+    const inicio = await db.rpc<{ mode: string; payment_id: string }>(cliente, 'payment_start', { p_request_id: id })
+    expect(inicio.mode).toBe('manual')
     await db.rpc(cliente, 'claim_payment', { p_id: id })
     await expect(db.rpc(cliente, 'claim_payment', { p_id: id })).rejects.toMatchObject({ message: 'cannot_pay' })
-    expect(await db.rpc(cliente, 'request_detail', { p_id: id })).toMatchObject({ payment_status: 'pending' })
-    await expect(db.rpc(cliente, 'admin_confirm_payment', { p_request_id: id })).rejects.toMatchObject(denied)
+    // Avisar não confirma: o pedido continua sem prestador.
+    expect(await db.rpc(cliente, 'request_detail', { p_id: id })).toMatchObject({ status: 'awaiting_payment', payment_status: 'pending' })
+    await expect(db.rpc(cliente, 'finance_confirm_manual_payment', { p_payment_id: inicio.payment_id, p_reference: 'E123456789' })).rejects.toMatchObject(denied)
     expect((await db.rpc<{ payments_to_confirm: number }>(hub, 'admin_overview')).payments_to_confirm).toBe(1)
-    await db.rpc(hub, 'admin_confirm_payment', { p_request_id: id })
-    expect(await db.rpc(cliente, 'request_detail', { p_id: id })).toMatchObject({ payment_status: 'paid', payout_status: 'pending' })
-    await db.rpc(hub, 'admin_save_pix', { p_pix_key: '', p_pix_holder: '' })
-    expect(await db.rpc(cliente, 'payment_info')).toMatchObject({ mode: 'demo' })
+    await expect(db.rpc(hub, 'finance_confirm_manual_payment', { p_payment_id: inicio.payment_id, p_reference: '123' })).rejects.toMatchObject({ message: 'reference_required' })
+    await db.rpc(hub, 'finance_confirm_manual_payment', { p_payment_id: inicio.payment_id, p_reference: 'E00000000202611171200abcdef' })
+    expect(await db.rpc(cliente, 'request_detail', { p_id: id })).toMatchObject({ status: 'searching', payment_status: 'paid', financial_status: 'payment_confirmed' })
+    await db.rpc(cliente, 'cancel_request', { p_id: id })
+    await db.rpc(hub, 'admin_save_finance_settings', { ...regras, p_payment_provider: 'asaas' })
+    expect(await db.rpc(cliente, 'payment_info')).toMatchObject({ mode: 'asaas' })
   })
 })
 
