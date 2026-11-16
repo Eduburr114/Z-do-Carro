@@ -16,7 +16,8 @@ export default async function CustomerHome() {
   const session = await requireRole('customer')
   const [services, requests] = await Promise.all([rpc<Service[]>('list_services'), rpc<ServiceRequest[]>('my_requests')])
   const open = requests.filter((r) => !['completed', 'cancelled'].includes(r.status))
-  const toPay = requests.filter((r) => r.status === 'completed' && r.payment_status === 'pending')
+  const toPay = requests.filter((r) => r.status === 'awaiting_payment')
+  const toConfirm = requests.filter((r) => r.status === 'completed' && r.financial_status === 'service_completed')
   return (
     <>
       {open.length > 0 ? <AutoRefresh seconds={10} /> : null}
@@ -24,9 +25,15 @@ export default async function CustomerHome() {
       <p className="mt-1 text-muted-foreground">Do que o seu carro precisa hoje?</p>
 
       {toPay.map((request) => (
-        <Notice key={request.id} tone="warning" title="Atendimento concluído" className="mt-4">
-          {request.service.name}: {request.payment_claimed_at ? `pagamento de ${formatMoney(request.total)} informado, aguardando a confirmação da HUB.` : `falta pagar ${formatMoney(request.total)}.`}{' '}
-          <Link href={`/cliente/pedidos/${request.id}`} className="font-semibold underline">{request.payment_claimed_at ? 'Ver pedido' : 'Pagar agora'}</Link>
+        <Notice key={request.id} tone="warning" title="Falta o pagamento" className="mt-4">
+          {request.service.name}: pague {formatMoney(request.total)} por Pix para chamarmos um prestador.{' '}
+          <Link href={`/cliente/pedidos/${request.id}`} className="font-semibold underline">Pagar agora</Link>
+        </Notice>
+      ))}
+      {toConfirm.map((request) => (
+        <Notice key={request.id} tone="info" title="Confirme o serviço" className="mt-4">
+          {request.service.name}: o prestador concluiu. Confirme ou conte se houve problema.{' '}
+          <Link href={`/cliente/pedidos/${request.id}`} className="font-semibold underline">Ver pedido</Link>
         </Notice>
       ))}
 

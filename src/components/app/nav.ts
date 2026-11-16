@@ -1,4 +1,4 @@
-import type { Role } from '@/lib/types'
+import type { Role, StaffRole } from '@/lib/types'
 import type { NavItem } from './bottom-nav'
 
 export const areaOf: Record<Role, { label: string; home: string; wide: boolean; nav: NavItem[] }> = {
@@ -29,11 +29,17 @@ export const areaOf: Record<Role, { label: string; home: string; wide: boolean; 
     home: '/hub',
     wide: true,
     nav: [
-      { href: '/hub', label: 'Visão geral', icon: 'gauge', exact: true },
-      { href: '/hub/prestadores', label: 'Prestadores', icon: 'people' },
-      { href: '/hub/pedidos', label: 'Pedidos', icon: 'orders' },
-      { href: '/hub/ajustes', label: 'Ajustes', icon: 'settings' },
-      { href: '/conta', label: 'Conta', icon: 'user' },
+      { href: '/hub', label: 'Visão geral', icon: 'gauge', exact: true, staff: 'admin' },
+      { href: '/hub/prestadores', label: 'Prestadores', icon: 'people', staff: 'admin' },
+      { href: '/hub/pedidos', label: 'Pedidos', icon: 'orders', staff: 'admin' },
+      { href: '/hub/financeiro', label: 'Financeiro', icon: 'wallet', staff: 'finance' },
+      { href: '/hub/ajustes', label: 'Ajustes', icon: 'settings', staff: 'admin' },
+      { href: '/conta', label: 'Conta', icon: 'user', hideForAdmin: true },
     ],
   },
+}
+
+/** Itens da navegação conforme os papéis internos de quem está na HUB. */
+export function navFor(role: Role, staff: StaffRole[]): NavItem[] {
+  return areaOf[role].nav.filter((item) => (!item.staff || staff.includes(item.staff)) && !(item.hideForAdmin && staff.includes('admin')))
 }

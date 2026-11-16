@@ -10,7 +10,7 @@ import { createRequest } from '@/features/customer/actions'
 import { requireRole } from '@/lib/auth/session'
 import { formatMoney } from '@/lib/format'
 import { rpc } from '@/lib/rpc'
-import type { Service, Vehicle } from '@/lib/types'
+import type { Quote, Service, Vehicle } from '@/lib/types'
 
 export const metadata: Metadata = { title: 'Pedir serviço' }
 
@@ -20,6 +20,8 @@ export default async function NewRequestPage({ params }: { params: Promise<{ id:
   const [services, vehicles] = await Promise.all([rpc<Service[]>('list_services'), rpc<Vehicle[]>('list_vehicles')])
   const service = services.find((s) => s.id === id)
   if (!service) notFound()
+  // Valor da região padrão; se a localização indicar outra região, o pedido usa o preço dela e a tela do pedido mostra o total final.
+  const quote = await rpc<Quote>('quote_service', { p_service_id: service.id })
   return (
     <>
       <h1 className="text-2xl font-semibold">{service.name}</h1>
@@ -43,13 +45,19 @@ export default async function NewRequestPage({ params }: { params: Promise<{ id:
           <GeoFields hint="Opcional. Ajuda a encontrar o prestador mais próximo." />
           <TextareaField label="Observações" name="notes" hint="Opcional. Ex.: medida do pneu, portaria, melhor horário." />
           <Panel className="px-4 py-3">
-            <Row label={service.name} value={formatMoney(service.base_price)} />
+            <Row label={service.name} value={formatMoney(quote.list_price)} />
+            {quote.discount > 0 ? <Row label={`Desconto${quote.promotion_name ? ` (${quote.promotion_name})` : ''}`} value={`− ${formatMoney(quote.discount)}`} /> : null}
+            {quote.fee > 0 ? <Row label="Taxa da plataforma" value={formatMoney(quote.fee)} /> : null}
             <Row label="Duração estimada" value={`${service.est_minutes} min`} />
             <div className="my-1.5 border-t border-border" />
-            <Row label="Total" value={formatMoney(service.base_price)} strong />
-            <p className="mt-1 text-sm text-muted-foreground">Você paga só depois do serviço. Qualquer adicional precisa da sua aprovação no aplicativo.</p>
+            <Row label="Total a pagar por Pix" value={formatMoney(quote.total)} strong />
+            <p className="mt-1 text-sm text-muted-foreground">
+              Você paga por Pix ao confirmar. O valor fica retido e só é repassado ao prestador depois que você confirmar o serviço.
+              Cancelou antes de o serviço começar? Devolvemos tudo. Adicionais só com a sua aprovação, pagos à parte.
+            </p>
+            {quote.region_name ? <p className="mt-1 text-xs text-muted-foreground">Preço para {quote.region_name}.</p> : null}
           </Panel>
-          <SubmitButton size="lg" className="w-full">Confirmar pedido</SubmitButton>
+          <SubmitButton size="lg" className="w-full">Confirmar e pagar</SubmitButton>
         </ActionForm>
       )}
     </>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { CopyButton } from '@/components/app/copy-button'
-import { ActionForm, SubmitButton } from '@/components/ui/form'
+import { ActionForm, SelectField, SubmitButton } from '@/components/ui/form'
 import { newSetupCode } from './actions'
 
 /** Gera e mostra, uma única vez, o código para um novo acesso da equipe da HUB. */
@@ -24,7 +24,11 @@ export function SetupCode({ pending }: { pending: boolean }) {
       ) : pending ? (
         <p className="mb-3 text-sm text-muted-foreground">Há um código gerado e ainda não utilizado. Gerar outro invalida o anterior.</p>
       ) : null}
-      <ActionForm action={newSetupCode} onSuccess={(state) => setCode(String(state.data?.code ?? ''))}>
+      <ActionForm action={newSetupCode} onSuccess={(state) => setCode(String(state.data?.code ?? ''))} resetOnSuccess={false}>
+        <SelectField label="Papel de quem vai usar o código" name="role" defaultValue="admin">
+          <option value="admin">Administração (credenciamento, catálogo, comissões)</option>
+          <option value="finance">Gestão financeira (pagamentos, repasses, estornos)</option>
+        </SelectField>
         <SubmitButton variant="secondary">Gerar código de ativação</SubmitButton>
       </ActionForm>
     </>

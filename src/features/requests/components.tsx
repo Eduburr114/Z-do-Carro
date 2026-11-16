@@ -59,17 +59,26 @@ export function StatusSteps({ status }: { status: RequestStatus }) {
   )
 }
 
-/** Resumo de valores. Para o prestador, mostra a comissão e o líquido (cláusula 7.3). */
+/**
+ * Resumo de valores. O cliente vê preço, desconto, taxa e total; o prestador vê
+ * a base de cálculo, a comissão e o líquido (cláusula 7.3). O desconto é
+ * custeado pela plataforma e não reduz o líquido do prestador.
+ */
 export function PriceSummary({ request, view }: { request: ServiceRequest; view: 'customer' | 'provider' | 'hub' }) {
   const approved = request.extras.filter((extra) => extra.status === 'approved')
+  const base = Number(request.price) + Number(request.extras_total)
   return (
     <Panel className="px-4 py-3">
       <Row label={request.service.name} value={formatMoney(request.price)} />
       {approved.map((extra) => (
         <Row key={extra.id} label={`Adicional: ${extra.description}`} value={formatMoney(extra.price)} />
       ))}
+      {view !== 'provider' && Number(request.discount_amount) > 0 ? (
+        <Row label={`Desconto${request.promotion_name ? ` (${request.promotion_name})` : ''}`} value={`− ${formatMoney(request.discount_amount)}`} />
+      ) : null}
+      {view !== 'provider' && Number(request.fee_amount) > 0 ? <Row label="Taxa da plataforma" value={formatMoney(request.fee_amount)} /> : null}
       <div className="my-1.5 border-t border-border" />
-      <Row label="Total do serviço" value={formatMoney(request.total)} strong={view === 'customer'} />
+      {view === 'provider' ? <Row label="Valor do serviço" value={formatMoney(base)} /> : <Row label={view === 'customer' ? 'Total' : 'Total pago pelo cliente'} value={formatMoney(request.total)} strong={view === 'customer'} />}
       {view !== 'customer' ? (
         <>
           <Row label={`Comissão da HUB (${formatPercent(request.commission_percent)})`} value={`− ${formatMoney(request.commission_amount)}`} />

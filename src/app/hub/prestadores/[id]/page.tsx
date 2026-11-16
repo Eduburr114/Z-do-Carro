@@ -4,7 +4,7 @@ import { RatingBadge, SectionTitle } from '@/components/app/bits'
 import { ActionForm, CheckboxField, SelectField, SubmitButton, TextareaField } from '@/components/ui/form'
 import { Badge, DefinitionList, Empty, Notice, Panel } from '@/components/ui/primitives'
 import { decideProvider, resolveSuspension, suspendProvider } from '@/features/hub/actions'
-import { requireRole } from '@/lib/auth/session'
+import { requireStaff } from '@/lib/auth/session'
 import { formatDateTime, formatDoc, formatPercent, formatPhone, providerStatus } from '@/lib/format'
 import { rpc } from '@/lib/rpc'
 import { DocumentList } from '@/features/documents/list'
@@ -24,7 +24,7 @@ type Detail = {
 }
 
 export default async function ProviderDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole('hub_admin')
+  await requireStaff('admin')
   const { id } = await params
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound()
   const p = await rpc<Detail | null>('admin_provider', { p_id: id })

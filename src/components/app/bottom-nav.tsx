@@ -6,7 +6,7 @@ import { Car, CircleUser, ClipboardList, FileText, Gauge, House, Settings, Users
 
 const icons = { home: House, orders: ClipboardList, car: Car, wallet: Wallet, contract: FileText, people: Users, settings: Settings, gauge: Gauge, user: CircleUser }
 
-export type NavItem = { href: string; label: string; icon: keyof typeof icons; exact?: boolean }
+export type NavItem = { href: string; label: string; icon: keyof typeof icons; exact?: boolean; staff?: 'admin' | 'finance'; hideForAdmin?: boolean }
 
 export function BottomNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname()

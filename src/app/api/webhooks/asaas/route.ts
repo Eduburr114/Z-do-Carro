@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { isConfigured } from '@/lib/env'
-import { financeDeps } from '@/lib/finance/server'
+import { financeDeps, flushEmailsAfterResponse } from '@/lib/finance/server'
 import { MAX_WEBHOOK_BYTES, handleAsaasWebhook } from '@/lib/finance/webhook'
 import { flushPushesAfterResponse } from '@/lib/push'
 import { limiterKey } from '@/lib/security'
@@ -18,6 +18,10 @@ export async function POST(request: NextRequest) {
     rawBody: await request.text(),
     clientKey: limiterKey('webhook', ip),
   })
-  if (reply.status === 200) flushPushesAfterResponse()
+  if (reply.status === 200) {
+    // Avisos e e-mails gerados pela confirmação saem logo depois da resposta.
+    flushPushesAfterResponse()
+    flushEmailsAfterResponse()
+  }
   return NextResponse.json(reply.body, { status: reply.status, headers: { 'Cache-Control': 'no-store' } })
 }

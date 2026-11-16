@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { RatingBadge } from '@/components/app/bits'
 import { Badge, Empty, Panel } from '@/components/ui/primitives'
-import { requireRole } from '@/lib/auth/session'
+import { requireStaff } from '@/lib/auth/session'
 import { formatDate, providerStatus } from '@/lib/format'
 import { rpc } from '@/lib/rpc'
 import type { ProviderStatus, Rating } from '@/lib/types'
@@ -16,7 +16,7 @@ type Row = {
 }
 
 export default async function ProvidersPage() {
-  await requireRole('hub_admin')
+  await requireStaff('admin')
   const providers = await rpc<Row[]>('admin_providers')
   return (
     <>

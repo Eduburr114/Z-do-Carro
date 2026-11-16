@@ -733,6 +733,17 @@ begin
     left join public.profiles pf on pf.id = a.actor_id), '[]'::jsonb);
 end $$;
 
+-- Regras vigentes, para a equipe financeira (sem acesso à administração).
+create function public.finance_settings() returns jsonb
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  perform app.require_staff('finance');
+  return (select jsonb_build_object('settings', jsonb_build_object('payment_provider', s.payment_provider, 'payout_mode', s.payout_mode,
+      'commission_percent', s.commission_percent, 'payout_days', s.payout_days, 'confirm_hours', s.confirm_hours,
+      'account_cooldown_hours', s.account_cooldown_hours, 'payout_max_attempts', s.payout_max_attempts)) from public.settings s);
+end $$;
+
 -- Pix manual: confirmação com o identificador da transação (E2E ou comprovante).
 create function public.finance_confirm_manual_payment(p_payment_id uuid, p_reference text) returns void
 language plpgsql security definer set search_path = ''

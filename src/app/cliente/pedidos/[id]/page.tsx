@@ -6,18 +6,19 @@ import { RatingBadge, SectionTitle } from '@/components/app/bits'
 import { buttonVariants } from '@/components/ui/button'
 import { ActionForm, SubmitButton, TextareaField } from '@/components/ui/form'
 import { Notice, Panel } from '@/components/ui/primitives'
-import { cancelRequest, claimPayment, decideExtra, payRequest, reviewRequest } from '@/features/customer/actions'
-import { CopyButton } from '@/components/app/copy-button'
+import { cancelRequest, confirmCompletion, decideExtra, openDispute, reviewRequest } from '@/features/customer/actions'
+import { PaymentPanel } from '@/features/payments/payment-panel'
 import { LiveMap, type MapPoint } from '@/features/map/live-map'
 import { PriceSummary, StatusBadge, StatusSteps, Timeline } from '@/features/requests/components'
 import { requireRole } from '@/lib/auth/session'
-import { formatKm, formatMoney, formatPhone } from '@/lib/format'
+import { formatDateTime, formatKm, formatMoney, formatPhone } from '@/lib/format'
 import { AppError, rpc } from '@/lib/rpc'
 import type { PaymentInfo, ServiceRequest } from '@/lib/types'
 
 export const metadata: Metadata = { title: 'Pedido' }
 
 const headline: Record<ServiceRequest['status'], string> = {
+  awaiting_payment: 'Falta só o pagamento',
   searching: 'Procurando um prestador perto de você',
   accepted: 'Prestador confirmado',
   en_route: 'O prestador está a caminho',
@@ -33,11 +34,14 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
     if (error instanceof AppError) notFound()
     throw error
   })
-  const live = !['completed', 'cancelled'].includes(request.status)
+  const live = !['completed', 'cancelled', 'awaiting_payment'].includes(request.status)
   const proposed = request.extras.filter((extra) => extra.status === 'proposed')
-  const canCancel = ['searching', 'accepted', 'en_route'].includes(request.status)
-  const mustPay = request.status === 'completed' && request.payment_status === 'pending'
+  const unpaidExtras = request.extras.filter((extra) => extra.status === 'approved' && !extra.paid)
+  const canCancel = ['awaiting_payment', 'searching', 'accepted', 'en_route'].includes(request.status)
+  const mustPay = request.status === 'awaiting_payment' || unpaidExtras.length > 0
   const payment = mustPay ? await rpc<PaymentInfo>('payment_info') : null
+  const toConfirm = request.status === 'completed' && request.financial_status === 'service_completed'
+  const paidBeforeCancel = request.status === 'cancelled' && ['refund_pending', 'refunded'].includes(request.financial_status)
   const points: MapPoint[] = []
   if (live && request.lat !== null && request.lng !== null) {
     points.push({ lat: request.lat, lng: request.lng, label: 'Seu carro', kind: 'car' })
@@ -48,8 +52,8 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      {/* Também enquanto o pagamento aguarda confirmação: a tela muda quando a HUB confere o Pix. */}
-      {live || mustPay ? <AutoRefresh seconds={6} /> : null}
+      {/* Também enquanto o pagamento aguarda confirmação: a tela muda quando o banco confirma o Pix. */}
+      {live || mustPay || request.financial_status === 'refund_pending' ? <AutoRefresh seconds={mustPay ? 4 : 6} /> : null}
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">Pedido nº {request.number}</p>
         <StatusBadge status={request.status} />
@@ -59,7 +63,10 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         {request.service.name} · {request.vehicle.brand} {request.vehicle.model} ({request.vehicle.plate})
       </p>
 
-      {request.status !== 'cancelled' ? <div className="mt-6"><StatusSteps status={request.status} /></div> : null}
+      {request.status !== 'cancelled' && request.status !== 'awaiting_payment' ? <div className="mt-6"><StatusSteps status={request.status} /></div> : null}
+
+      {request.status === 'awaiting_payment' && payment ? <PaymentPanel request={request} info={payment} /> : null}
+      {payment ? unpaidExtras.map((extra) => <PaymentPanel key={extra.id} request={request} info={payment} extra={extra} />) : null}
 
       {points.length > 0 ? <div className="mt-5"><LiveMap points={points} /></div> : null}
 
@@ -88,55 +95,47 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         </Panel>
       ))}
 
-      {mustPay && payment?.mode === 'demo' ? (
-        <Panel className="mt-5 px-4 py-4">
-          <p className="text-lg font-semibold">Pagamento</p>
-          <p className="mt-1 text-sm text-muted-foreground">Confira o resumo abaixo e confirme o pagamento.</p>
-          <ActionForm action={payRequest} successMessage="Pagamento confirmado." className="mt-3">
+      {toConfirm ? (
+        <Panel className="mt-5 border-2 border-brand px-4 py-4">
+          <p className="text-lg font-semibold">O serviço ficou bom?</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Confirme para liberar o repasse ao prestador. Se algo deu errado, conte para a HUB: o valor fica retido até a análise.
+            {request.completion_deadline ? ` Sem resposta até ${formatDateTime(request.completion_deadline)}, o serviço é considerado confirmado.` : ''}
+          </p>
+          <ActionForm action={confirmCompletion} successMessage="Serviço confirmado. Obrigado!" className="mt-3">
             <input type="hidden" name="id" value={request.id} />
-            <SubmitButton size="lg" className="w-full">Pagar {formatMoney(request.total)}</SubmitButton>
+            <SubmitButton size="lg" className="w-full">Confirmar serviço</SubmitButton>
           </ActionForm>
-          <p className="mt-2 text-xs text-muted-foreground">Modo demonstração: o pagamento é simulado, nenhuma cobrança é feita.</p>
+          <details className="mt-3">
+            <summary className="cursor-pointer text-sm font-semibold">Tive um problema com o serviço</summary>
+            <ActionForm action={openDispute} successMessage="Recebemos o seu relato." className="mt-3">
+              <input type="hidden" name="id" value={request.id} />
+              <TextareaField label="O que aconteceu?" name="reason" hint="Ao menos 20 caracteres. A equipe da HUB analisa e responde pelo aplicativo." />
+              <SubmitButton variant="outline" className="w-full">Enviar para análise</SubmitButton>
+            </ActionForm>
+          </details>
         </Panel>
       ) : null}
 
-      {mustPay && payment?.mode === 'pix' ? (
-        <Panel className="mt-5 px-4 py-4">
-          <p className="text-lg font-semibold">Pague {formatMoney(request.total)} por Pix</p>
-          {request.payment_claimed_at ? (
-            <Notice tone="info" title="Aguardando a confirmação da HUB" className="mt-3">
-              Você informou o pagamento. Assim que o Pix for conferido, o pedido é encerrado e você pode avaliar o atendimento.
-            </Notice>
-          ) : (
-            <>
-              <p className="mt-1 text-sm text-muted-foreground">Use a chave abaixo no aplicativo do seu banco e depois toque em “Já paguei”.</p>
-              <dl className="mt-3 space-y-2 rounded-(--radius-control) bg-surface-2 px-3 py-3 text-sm">
-                <div>
-                  <dt className="text-muted-foreground">Chave Pix</dt>
-                  <dd className="flex items-center justify-between gap-2 font-semibold break-all">
-                    {payment.pix_key}
-                    <CopyButton text={payment.pix_key ?? ''} />
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Favorecido</dt>
-                  <dd className="font-semibold">{payment.pix_holder}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Valor · identificação</dt>
-                  <dd className="font-semibold tabular-nums">{formatMoney(request.total)} · pedido nº {request.number}</dd>
-                </div>
-              </dl>
-              <ActionForm action={claimPayment} successMessage="Pagamento informado." className="mt-3">
-                <input type="hidden" name="id" value={request.id} />
-                <SubmitButton size="lg" className="w-full">Já paguei</SubmitButton>
-              </ActionForm>
-            </>
-          )}
-        </Panel>
+      {request.financial_status === 'disputed' ? (
+        <Notice tone="warning" title="Em análise pela HUB" className="mt-5">
+          Recebemos o seu relato. O valor fica retido até a decisão, que você recebe por aviso.
+        </Notice>
+      ) : null}
+      {request.dispute && request.dispute.status !== 'open' ? (
+        <Notice tone="info" title="Decisão da HUB" className="mt-5">{request.dispute.resolution_note}</Notice>
+      ) : null}
+      {request.financial_status === 'refund_pending' ? (
+        <Notice tone="info" title="Estorno em andamento" className="mt-5">O valor pago volta para a conta de origem do Pix. Avisamos quando concluir.</Notice>
+      ) : null}
+      {request.financial_status === 'refunded' ? (
+        <Notice tone="success" title="Estorno concluído" className="mt-5">Devolvemos o valor pago para a conta de origem do Pix.</Notice>
+      ) : null}
+      {request.status === 'cancelled' && !paidBeforeCancel && request.financial_status === 'cancelled' && request.cancel_reason ? (
+        <Notice tone="neutral" className="mt-5">{request.cancel_reason}</Notice>
       ) : null}
 
-      {request.status === 'completed' && request.payment_status === 'paid' && !request.review ? (
+      {request.status === 'completed' && !toConfirm && request.financial_status !== 'disputed' && !request.review ? (
         <Panel className="mt-5 px-4 py-4">
           <p className="text-lg font-semibold">Como foi o atendimento?</p>
           <ActionForm action={reviewRequest} successMessage="Obrigado pela avaliação!" className="mt-3">

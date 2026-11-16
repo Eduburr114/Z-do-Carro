@@ -1,4 +1,4 @@
-import type { ProviderStatus, RequestStatus } from '@/lib/types'
+import type { FinancialStatus, PaymentStatus, PayoutStatus, ProviderStatus, RequestStatus } from '@/lib/types'
 
 const TZ = 'America/Fortaleza'
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -53,6 +53,7 @@ export function formatPercent(value: number | string): string {
 type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info'
 
 export const requestStatus: Record<RequestStatus, { label: string; tone: Tone }> = {
+  awaiting_payment: { label: 'Aguardando pagamento', tone: 'warning' },
   searching: { label: 'Procurando prestador', tone: 'warning' },
   accepted: { label: 'Prestador confirmado', tone: 'info' },
   en_route: { label: 'A caminho', tone: 'info' },
@@ -82,9 +83,61 @@ export const eventLabel: Record<string, string> = {
   extra_approved: 'Adicional aprovado pelo cliente',
   extra_rejected: 'Adicional recusado pelo cliente',
   payment_claimed: 'Cliente informou o pagamento por Pix',
-  paid: 'Pagamento confirmado',
+  paid: 'Pagamento confirmado pelo banco',
   payout: 'Repasse feito ao prestador',
+  payment_expired: 'Prazo de pagamento encerrado',
+  payment_orphan: 'Pagamento fora do fluxo (estorno automático)',
+  extra_paid: 'Adicional pago',
+  extra_cancelled: 'Adicional cancelado',
+  completion_confirmed: 'Cliente confirmou o serviço',
+  payout_scheduled: 'Repasse agendado',
+  payout_on_hold: 'Repasse aguardando conta Pix',
+  payout_completed: 'Repasse transferido',
+  payout_failed: 'Repasse com falha',
+  refund_requested: 'Estorno solicitado',
+  refunded: 'Estorno concluído',
+  dispute_opened: 'Disputa aberta',
+  dispute_resolved: 'Disputa decidida',
 }
+
+export const financialStatus: Record<FinancialStatus, { label: string; tone: Tone }> = {
+  pending_payment: { label: 'Aguardando pagamento', tone: 'warning' },
+  payment_confirmed: { label: 'Pago', tone: 'success' },
+  service_in_progress: { label: 'Em atendimento', tone: 'info' },
+  service_completed: { label: 'Aguardando confirmação', tone: 'warning' },
+  payout_scheduled: { label: 'Repasse agendado', tone: 'info' },
+  payout_processing: { label: 'Repasse em processamento', tone: 'info' },
+  payout_completed: { label: 'Repasse concluído', tone: 'success' },
+  payout_failed: { label: 'Repasse com falha', tone: 'danger' },
+  disputed: { label: 'Em disputa', tone: 'danger' },
+  refund_pending: { label: 'Estorno em andamento', tone: 'warning' },
+  refunded: { label: 'Estornado', tone: 'neutral' },
+  cancelled: { label: 'Cancelado', tone: 'neutral' },
+}
+
+export const payoutStatus: Record<PayoutStatus, { label: string; tone: Tone }> = {
+  scheduled: { label: 'Agendado', tone: 'info' },
+  on_hold: { label: 'Retido', tone: 'warning' },
+  processing: { label: 'Em processamento', tone: 'info' },
+  completed: { label: 'Transferido', tone: 'success' },
+  failed: { label: 'Com falha', tone: 'danger' },
+  cancelled: { label: 'Cancelado', tone: 'neutral' },
+}
+
+export const paymentStatus: Record<PaymentStatus, { label: string; tone: Tone }> = {
+  creating: { label: 'Gerando cobrança', tone: 'neutral' },
+  pending: { label: 'Aguardando Pix', tone: 'warning' },
+  confirmed: { label: 'Confirmado', tone: 'success' },
+  expired: { label: 'Vencido', tone: 'neutral' },
+  cancelled: { label: 'Cancelado', tone: 'neutral' },
+  failed: { label: 'Não gerado', tone: 'danger' },
+  refund_pending: { label: 'Estorno em andamento', tone: 'warning' },
+  refunded: { label: 'Estornado', tone: 'neutral' },
+}
+
+/** Centavos ou reais vindos do banco, formatados como percentual com 2 casas. */
+export const holdReason = (reason: string | null) =>
+  !reason ? '' : reason === 'no_account' ? 'aguardando conta Pix conferida' : reason === 'dispute' ? 'disputa em análise' : reason.replace(/^finance: /, 'retido pela equipe: ')
 
 export const documentKind: Record<string, string> = {
   identity: 'Documento de identificação',

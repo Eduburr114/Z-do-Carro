@@ -180,7 +180,7 @@ export function createProvidersMock(options: ProvidersMockOptions = {}) {
       // Payload fictício que carrega o id, para os testes simularem o pagamento.
       return send(res, 200, {
         encodedImage: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
-        payload: `00020126580014br.gov.bcb.pix0136EMULADOR-LOCAL-${payment.id}5204000053039865802BR`,
+        payload: `00020126580014br.gov.bcb.pix0136EMULADOR-LOCAL-${payment.id}*5204000053039865802BR`,
         expirationDate: new Date(Date.now() + 3600_000).toISOString().slice(0, 19).replace('T', ' '),
       })
     }

@@ -3,10 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 import { env } from '@/lib/env'
 
 /**
- * Cliente com a chave secreta. Uso restrito a duas tarefas que não têm outro
- * caminho: o limite de tentativas (antes do login) e a fila de push. As funções
- * correspondentes no banco só aceitam este papel. Nunca importe em código de
- * cliente; "server-only" faz o build falhar se isso acontecer.
+ * Cliente com a chave secreta (papel service_role). Uso restrito ao servidor,
+ * para o que não tem sessão de usuário: limite de tentativas, filas de push e
+ * e-mail, webhooks e rotina financeira. As funções correspondentes no banco só
+ * aceitam este papel. "server-only" faz o build falhar se for importado no
+ * navegador.
  */
 export function createAdminClient() {
   const config = env()

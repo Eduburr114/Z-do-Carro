@@ -1,18 +1,16 @@
 import type { Metadata } from 'next'
 import { AutoRefresh } from '@/components/app/auto-refresh'
-import { ActionForm, SubmitButton } from '@/components/ui/form'
-import { confirmPayment, markPayout } from '@/features/hub/actions'
 import { Badge, Empty, Panel } from '@/components/ui/primitives'
 import { StatusBadge } from '@/features/requests/components'
-import { requireRole } from '@/lib/auth/session'
-import { formatDate, formatDateTime, formatMoney } from '@/lib/format'
+import { requireStaff } from '@/lib/auth/session'
+import { financialStatus, formatDateTime, formatMoney } from '@/lib/format'
 import { rpc } from '@/lib/rpc'
 import type { ServiceRequest } from '@/lib/types'
 
 export const metadata: Metadata = { title: 'Pedidos' }
 
 export default async function HubRequestsPage() {
-  await requireRole('hub_admin')
+  await requireStaff('admin')
   const requests = await rpc<ServiceRequest[]>('admin_requests')
   return (
     <>
@@ -28,12 +26,7 @@ export default async function HubRequestsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold">nº {r.number} · {r.service.name}</p>
                   <StatusBadge status={r.status} />
-                  {r.status === 'completed' ? (
-                    <Badge tone={r.payment_status === 'paid' ? 'success' : 'warning'}>
-                      {r.payment_status === 'paid' ? 'Pago' : r.payment_claimed_at ? 'Pix informado, a confirmar' : 'Aguardando pagamento'}
-                    </Badge>
-                  ) : null}
-                  {r.payout_status === 'paid' ? <Badge tone="success">Repassado</Badge> : null}
+                  <Badge tone={financialStatus[r.financial_status].tone}>{financialStatus[r.financial_status].label}</Badge>
                 </div>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   {formatDateTime(r.created_at)} · cliente {r.customer?.name ?? '—'} · prestador {r.provider?.name ?? 'não definido'}
@@ -41,24 +34,9 @@ export default async function HubRequestsPage() {
                 <p className="text-sm text-muted-foreground">{r.address}</p>
                 <p className="mt-1 text-sm tabular-nums">
                   Total {formatMoney(r.total)} · comissão {formatMoney(r.commission_amount)} · líquido do prestador {formatMoney(r.provider_net)}
+                  {Number(r.discount_amount) > 0 ? ` · desconto ${formatMoney(r.discount_amount)}` : ''}
                 </p>
                 {r.cancel_reason ? <p className="text-sm text-muted-foreground">Motivo do cancelamento: {r.cancel_reason}</p> : null}
-                {r.status === 'completed' && r.payment_status === 'pending' ? (
-                  <ActionForm action={confirmPayment} successMessage="Pagamento confirmado." className="mt-2">
-                    <input type="hidden" name="id" value={r.id} />
-                    <SubmitButton size="sm" variant={r.payment_claimed_at ? 'primary' : 'secondary'}>
-                      Confirmar recebimento de {formatMoney(r.total)}
-                    </SubmitButton>
-                  </ActionForm>
-                ) : null}
-                {r.payout_status === 'pending' ? (
-                  <ActionForm action={markPayout} successMessage="Repasse registrado." className="mt-2">
-                    <input type="hidden" name="id" value={r.id} />
-                    <SubmitButton size="sm" variant="secondary">
-                      Registrar repasse de {formatMoney(r.provider_net)} (previsto até {formatDate(r.payout_due)})
-                    </SubmitButton>
-                  </ActionForm>
-                ) : null}
               </li>
             ))}
           </ul>

@@ -6,12 +6,12 @@ import { SectionTitle } from '@/components/app/bits'
 import { buttonVariants } from '@/components/ui/button'
 import { ActionForm, Field, MoneyField, SubmitButton, TextareaField } from '@/components/ui/form'
 import { Badge, Notice, Panel } from '@/components/ui/primitives'
-import { acceptRequest, advanceRequest, declineRequest, proposeExtra, withdrawRequest } from '@/features/provider/actions'
+import { acceptRequest, advanceRequest, cancelExtra, declineRequest, proposeExtra, withdrawRequest } from '@/features/provider/actions'
 import { PositionBeacon } from '@/features/provider/online-toggle'
 import { LiveMap } from '@/features/map/live-map'
 import { PriceSummary, StatusBadge, StatusSteps, Timeline } from '@/features/requests/components'
 import { requireRole } from '@/lib/auth/session'
-import { formatDate, formatKm, formatMoney, formatPhone } from '@/lib/format'
+import { formatDate, formatDateTime, formatKm, formatMoney, formatPhone, holdReason, payoutStatus } from '@/lib/format'
 import { AppError, rpc } from '@/lib/rpc'
 import type { ServiceRequest } from '@/lib/types'
 
@@ -23,8 +23,8 @@ const next = {
   in_progress: { to: 'completed', label: 'Concluir serviço' },
 } as const
 
-const extraTone = { proposed: 'warning', approved: 'success', rejected: 'neutral' } as const
-const extraLabel = { proposed: 'Aguardando o cliente', approved: 'Aprovado', rejected: 'Recusado' } as const
+const extraTone = { proposed: 'warning', approved: 'success', rejected: 'neutral', cancelled: 'neutral' } as const
+const extraLabel = { proposed: 'Aguardando o cliente', approved: 'Aprovado', rejected: 'Recusado', cancelled: 'Cancelado' } as const
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole('provider')
@@ -102,12 +102,17 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       ) : null}
 
       {request.status === 'completed' ? (
-        <Notice tone={request.payout_status === 'paid' ? 'success' : 'info'} className="mt-4">
-          {request.payout_status === 'paid'
-            ? `Repasse de ${formatMoney(request.provider_net)} realizado.`
-            : request.payout_status === 'pending'
-              ? `Cliente pagou. Repasse de ${formatMoney(request.provider_net)} previsto até ${formatDate(request.payout_due)}.`
-              : 'Aguardando o pagamento do cliente para liberar o repasse.'}
+        <Notice tone={request.financial_status === 'payout_completed' ? 'success' : request.financial_status === 'disputed' ? 'warning' : 'info'} className="mt-4">
+          {request.financial_status === 'service_completed'
+            ? `Aguardando o cliente confirmar o serviço${request.completion_deadline ? ` (confirmação automática em ${formatDateTime(request.completion_deadline)})` : ''}. O repasse é agendado em seguida.`
+            : request.financial_status === 'disputed'
+              ? 'O cliente relatou um problema. O repasse fica retido até a decisão da HUB.'
+              : ['refund_pending', 'refunded'].includes(request.financial_status)
+                ? 'O pagamento deste atendimento foi estornado ao cliente.'
+                : request.payout
+                  ? `Repasse de ${formatMoney(request.payout.amount)}: ${payoutStatus[request.payout.status].label.toLowerCase()}${
+                      request.payout.status === 'completed' ? '' : request.payout.status === 'on_hold' ? ` (${holdReason(request.payout.hold_reason)})` : `, previsto para ${formatDate(request.payout.scheduled_for)}`}.`
+                  : 'Pagamento confirmado.'}
         </Notice>
       ) : null}
 
@@ -126,7 +131,15 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
                       <p className="font-medium">{extra.description}</p>
                       <p className="text-sm text-muted-foreground tabular-nums">{formatMoney(extra.price)}</p>
                     </div>
-                    <Badge tone={extraTone[extra.status]}>{extraLabel[extra.status]}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge tone={extra.paid ? 'success' : extraTone[extra.status]}>{extra.paid ? 'Pago' : extra.status === 'approved' ? 'Aprovado, aguardando Pix' : extraLabel[extra.status]}</Badge>
+                      {request.status === 'in_progress' && !extra.paid && ['proposed', 'approved'].includes(extra.status) ? (
+                        <ActionForm action={cancelExtra} successMessage="Adicional cancelado.">
+                          <input type="hidden" name="id" value={extra.id} />
+                          <SubmitButton size="sm" variant="ghost">Cancelar</SubmitButton>
+                        </ActionForm>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -138,7 +151,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
               <Field label="O que mais precisa ser feito?" name="description" placeholder="Ex.: troca da válvula" />
               <MoneyField label="Valor ao cliente (R$)" name="price" />
               <SubmitButton variant="secondary" className="w-full">Enviar orçamento ao cliente</SubmitButton>
-              <p className="text-sm text-muted-foreground">Execute o adicional somente depois que o cliente aprovar no aplicativo.</p>
+              <p className="text-sm text-muted-foreground">Execute o adicional somente depois que o cliente aprovar e pagar no aplicativo.</p>
             </ActionForm>
           ) : null}
         </>

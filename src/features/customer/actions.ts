@@ -3,6 +3,10 @@
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { formAction } from '@/lib/action'
+import { createCharge } from '@/lib/finance/charges'
+import { financeDeps } from '@/lib/finance/server'
+import type { PaymentStart } from '@/lib/finance/types'
+import { AppError } from '@/lib/rpc'
 import { zCoord, zId } from '@/lib/zod'
 
 export const saveVehicle = formAction(
@@ -47,9 +51,36 @@ export const decideExtra = formAction(z.object({ id: zId, approve: z.enum(['yes'
   await rpc('decide_extra', { p_extra_id: id, p_approve: approve === 'yes' })
 })
 
-export const payRequest = formAction(z.object({ id: zId }), async ({ id }, { rpc }) => {
-  await rpc('pay_request', { p_id: id })
+/**
+ * Gera (ou reaproveita) a cobrança Pix do pedido ou de um adicional. O banco
+ * decide o valor; o servidor cria a cobrança no provedor com a chave secreta.
+ * A confirmação do pagamento NUNCA vem daqui: só do webhook/consulta ao provedor.
+ */
+export const startPayment = formAction(z.object({ id: zId, extra_id: z.union([zId, z.literal('')]).optional() }), async ({ id, extra_id }, { rpc }) => {
+  const start = await rpc<PaymentStart>('payment_start', { p_request_id: id, p_extra_id: extra_id || null })
+  if (start.action === 'create') {
+    const result = await createCharge(financeDeps(), start)
+    if (!result.ok) throw new AppError('charge_failed', result.message)
+  }
 })
+
+export const savePaymentTaxId = formAction(
+  z.object({ tax_id: z.string().transform((v) => v.replace(/\D/g, '')).pipe(z.string().regex(/^(\d{11}|\d{14})$/, 'Informe o CPF (11 dígitos) ou CNPJ (14 dígitos).')) }),
+  async ({ tax_id }, { rpc }) => {
+    await rpc('save_payment_tax_id', { p_tax_id: tax_id })
+  },
+)
+
+export const confirmCompletion = formAction(z.object({ id: zId }), async ({ id }, { rpc }) => {
+  await rpc('confirm_completion', { p_id: id })
+})
+
+export const openDispute = formAction(
+  z.object({ id: zId, reason: z.string().trim().min(20, 'Descreva o problema (ao menos 20 caracteres).').max(2000) }),
+  async ({ id, reason }, { rpc }) => {
+    await rpc('open_dispute', { p_id: id, p_reason: reason })
+  },
+)
 
 export const claimPayment = formAction(z.object({ id: zId }), async ({ id }, { rpc }) => {
   await rpc('claim_payment', { p_id: id })

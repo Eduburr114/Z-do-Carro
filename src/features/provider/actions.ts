@@ -97,3 +97,18 @@ export const closeCredentialing = formAction(
     await rpc('close_credentialing')
   },
 )
+
+export const cancelExtra = formAction(z.object({ id: zId }), async ({ id }, { rpc }) => {
+  await rpc('cancel_extra', { p_extra_id: id })
+})
+
+export const savePaymentAccount = formAction(
+  z.object({
+    pix_key_type: z.enum(['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'EVP'], 'Escolha o tipo da chave.'),
+    pix_key: z.string().trim().min(3, 'Informe a chave Pix.').max(140),
+    holder_name: z.string().trim().min(3, 'Informe o nome do titular.').max(160),
+  }),
+  async (input, { rpc }) => {
+    await rpc('save_payment_account', { p_pix_key_type: input.pix_key_type, p_pix_key: input.pix_key, p_holder_name: input.holder_name })
+  },
+)

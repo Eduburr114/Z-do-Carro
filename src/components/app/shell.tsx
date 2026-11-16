@@ -4,7 +4,8 @@ import { Bell } from 'lucide-react'
 import type { ActiveSession } from '@/lib/auth/session'
 import { WheelMark } from './brand'
 import { BottomNav } from './bottom-nav'
-import { areaOf } from './nav'
+import { areaOf, navFor } from './nav'
+import { staffHome } from '@/lib/auth/session'
 
 /** Moldura das três áreas: barra superior com os avisos, conteúdo em coluna de celular e abas embaixo. */
 export function AppShell({ session, children }: { session: ActiveSession; children: ReactNode }) {
@@ -14,7 +15,7 @@ export function AppShell({ session, children }: { session: ActiveSession; childr
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-20 bg-nav pt-safe text-nav-foreground">
         <div className={`mx-auto flex h-14 items-center justify-between gap-3 px-4 ${width}`}>
-          <Link href={area.home} className="flex items-center gap-2.5 font-display text-lg font-semibold">
+          <Link href={session.profile.role === 'hub_admin' ? staffHome(session.staff) : area.home} className="flex items-center gap-2.5 font-display text-lg font-semibold">
             <WheelMark className="size-8 rounded-lg" />
             <span>Zé do Carro</span>
             <span className="rounded-full bg-brand px-2 py-0.5 font-sans text-xs font-bold text-brand-foreground">{area.label}</span>
@@ -34,7 +35,7 @@ export function AppShell({ session, children }: { session: ActiveSession; childr
         </div>
       </header>
       <main className={`mx-auto w-full flex-1 px-4 pt-5 pb-28 ${width}`}>{children}</main>
-      <BottomNav items={area.nav} />
+      <BottomNav items={navFor(session.profile.role, session.staff)} />
     </div>
   )
 }
