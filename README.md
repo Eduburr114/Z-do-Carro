@@ -62,7 +62,7 @@ Para ver o fluxo, abra duas janelas: peça um serviço como cliente e, na outra,
 ## Testes
 
 ```bash
-pnpm test                    # 24 testes de banco: acesso, credenciamento, documentos, contrato, atendimento, Pix, avisos, suspensão
+pnpm test                    # 25 testes de banco: acesso, credenciamento, documentos, contrato, atendimento, Pix, avisos, suspensão
 pnpm build && pnpm test:e2e  # 3 roteiros no navegador, com cliente, prestador e HUB ao mesmo tempo
 pnpm check                   # lint, tipos, testes de banco e build
 ```
@@ -71,7 +71,7 @@ Os testes de banco chamam as funções como a API faria (papel `authenticated` e
 
 ## Implantação
 
-1. **Supabase.** Crie um projeto (região São Paulo, `sa-east-1`) e aplique as quatro migrações de `supabase/migrations` em ordem (`supabase db push` ou o editor SQL). Em Authentication:
+1. **Supabase.** Crie um projeto (região São Paulo, `sa-east-1`) e instale o banco: cole o conteúdo de `supabase/instalar.sql` no editor SQL e execute (ou use `supabase db push`, que aplica as migrações de `supabase/migrations`). Em Authentication:
    - **URL Configuration:** defina a *Site URL* com o endereço do aplicativo e inclua `https://SEU-ENDERECO/auth/confirmar` nas *Redirect URLs*.
    - **Email Templates → Reset Password:** use o link `{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery`, para a recuperação funcionar em qualquer aparelho.
    - **Confirmação de e-mail e SMTP:** o envio de e-mail embutido do Supabase aceita pouquíssimas mensagens por hora. Para operar, configure um SMTP próprio. Sem ele, desligue *Confirm email* para o cadastro não depender de e-mail.
