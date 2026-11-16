@@ -1,0 +1,124 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Identidade do Zé do Carro: asfalto e sinalização. Tinta escura (asfalto),
+ * amarelo de faixa como cor da marca e azul para ações secundárias e links.
+ * O amarelo sempre leva texto escuro; como texto, usa-se o azul ou a tinta.
+ */
+:root {
+  --background: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #e8ebf0;
+  --foreground: #10151f;
+  --muted-foreground: #556070;
+  --border: #d8dde6;
+  --primary: #1747c9;
+  --brand: #ffc400;
+  --brand-hover: #f0b400;
+  --brand-foreground: #10151f;
+  --danger: #b3261e;
+  --danger-surface: #fbe6e3;
+  --success: #17683a;
+  --success-surface: #e0f3e7;
+  --warning: #7a5200;
+  --warning-surface: #fff1c2;
+  --info-surface: #e2eafc;
+  --ring: #1747c9;
+  --nav: #10151f;
+  --nav-foreground: #f3f4f6;
+  --nav-muted: #9aa5b5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0c1017;
+    --surface: #151b26;
+    --surface-2: #1f2735;
+    --foreground: #f0f2f5;
+    --muted-foreground: #a3adbd;
+    --border: #2b3445;
+    --primary: #8fb0ff;
+    --brand: #ffc400;
+    --brand-hover: #ffd033;
+    --brand-foreground: #10151f;
+    --danger: #ff9a90;
+    --danger-surface: #43201d;
+    --success: #7fd6a0;
+    --success-surface: #173324;
+    --warning: #ffd666;
+    --warning-surface: #3b2f0d;
+    --info-surface: #1a2847;
+    --ring: #8fb0ff;
+    --nav: #080b10;
+    --nav-foreground: #f0f2f5;
+    --nav-muted: #8b96a8;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-info-surface: var(--info-surface);
+  --color-ring: var(--ring);
+  --color-nav: var(--nav);
+  --color-nav-foreground: var(--nav-foreground);
+  --color-nav-muted: var(--nav-muted);
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
+  --radius-control: 0.625rem;
+  --radius-panel: 1rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light dark;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "tnum" 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* iOS amplia a página quando o campo tem fonte menor que 16px. */
+  input, select, textarea {
+    font-size: 1rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
