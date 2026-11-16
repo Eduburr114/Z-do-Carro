@@ -57,7 +57,7 @@ export class TestDb {
     if (role === 'hub_admin') {
       await this.rpc(service, 'promote_hub_admin', { p_email: email, p_full_name: name, p_phone: '98999990000' })
     } else {
-      await this.rpc(user, 'register_profile', { p_full_name: name, p_phone: '(98) 99999-0000', p_role: role })
+      await this.rpc(user, 'register_profile', { p_full_name: name, p_phone: '(98) 99999-0000', p_role: role, p_terms_version: 'teste' })
     }
     return user
   }
@@ -82,6 +82,9 @@ export class TestDb {
     }
   }
 }
+
+/** PNG de 1 pixel, em base64, para os testes de documentos. */
+export const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 export const anon: Claims = { role: 'anon' }
 export const service: Claims = { role: 'service_role' }

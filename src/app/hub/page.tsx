@@ -12,10 +12,11 @@ export const metadata: Metadata = { title: 'Visão geral' }
 type Overview = {
   providers: { pending: number; approved: number; online: number; suspended: number }
   contests: number
+  payments_to_confirm: number
   customers: number
   requests: { searching: number; active: number; completed: number; cancelled: number; gross: number; commission: number; payouts_pending: number; awaiting_payment: number }
   rating: Rating
-  settings: { commission_percent: number; payout_days: number; search_radius_km: number }
+  settings: { commission_percent: number; payout_days: number; search_radius_km: number; pix_key: string | null }
   contract: { version: string; title: string } | null
 }
 
@@ -35,6 +36,11 @@ export default async function HubOverview() {
         {o.contests > 0 ? (
           <Notice tone="warning" title={`${o.contests} contestação(ões) de suspensão para rever`}>
             <Link href="/hub/prestadores" className="font-semibold underline">Abrir prestadores</Link>
+          </Notice>
+        ) : null}
+        {o.payments_to_confirm > 0 ? (
+          <Notice tone="warning" title={`${o.payments_to_confirm} pagamento(s) por Pix para conferir`}>
+            <Link href="/hub/pedidos" className="font-semibold underline">Confirmar recebimentos</Link>
           </Notice>
         ) : null}
         {o.requests.searching > 0 ? (
@@ -71,7 +77,12 @@ export default async function HubOverview() {
       <Notice tone="warning" title="Antes de operar com clientes reais" className="mt-7">
         <ul className="mt-1 list-disc space-y-1 pl-5">
           <li>O contrato publicado é a versão {o.contract?.version ?? '—'}, uma minuta com campos a preencher ([CNPJ], [PERCENTUAL], [PRAZO]) e pendente de revisão jurídica.</li>
-          <li>O pagamento é simulado: falta integrar o provedor de pagamentos com divisão automática.</li>
+          <li>
+            {o.settings.pix_key
+              ? 'Pagamento por Pix com confirmação manual da HUB. Para volume maior, integre um provedor de pagamentos com divisão automática.'
+              : 'O pagamento está em modo demonstração (simulado). Cadastre a chave Pix da HUB em Ajustes para receber de verdade.'}
+          </li>
+          <li>Os Termos de Uso e a Política de Privacidade publicados também são minutas.</li>
           <li>Preços, comissão e prazo de repasse são valores de partida, ajustáveis em Ajustes.</li>
         </ul>
       </Notice>

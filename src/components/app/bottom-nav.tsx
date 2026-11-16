@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Car, ClipboardList, FileText, Gauge, House, Settings, Users, Wallet, Wrench } from 'lucide-react'
+import { Car, CircleUser, ClipboardList, FileText, Gauge, House, Settings, Users, Wallet } from 'lucide-react'
 
-const icons = { home: House, orders: ClipboardList, car: Car, wallet: Wallet, contract: FileText, tools: Wrench, people: Users, settings: Settings, gauge: Gauge }
+const icons = { home: House, orders: ClipboardList, car: Car, wallet: Wallet, contract: FileText, people: Users, settings: Settings, gauge: Gauge, user: CircleUser }
 
 export type NavItem = { href: string; label: string; icon: keyof typeof icons; exact?: boolean }
 
@@ -21,9 +21,9 @@ export function BottomNav({ items }: { items: NavItem[] }) {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex h-16 flex-col items-center justify-center gap-1 text-xs font-semibold ${active ? 'text-foreground' : 'text-muted-foreground'}`}
+                className={`flex h-16 flex-col items-center justify-center gap-1 text-[0.7rem] font-semibold ${active ? 'text-foreground' : 'text-muted-foreground'}`}
               >
-                <span className={`flex h-7 w-14 items-center justify-center rounded-full ${active ? 'bg-brand text-brand-foreground' : ''}`}>
+                <span className={`flex h-7 w-12 items-center justify-center rounded-full ${active ? 'bg-brand text-brand-foreground' : ''}`}>
                   <Icon className="size-5" />
                 </span>
                 {item.label}

@@ -12,7 +12,7 @@ import { sessionCookieOptions } from '@/lib/supabase/cookie-options'
  * sessão de novo, e o banco decide por último (RLS e funções).
  */
 
-const PUBLIC_PREFIXES = ['/login', '/cadastro']
+const PUBLIC_PREFIXES = ['/login', '/cadastro', '/recuperar', '/auth', '/termos', '/privacidade']
 
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV !== 'production'
@@ -20,7 +20,8 @@ function buildCsp(nonce: string): string {
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? ` 'unsafe-eval'` : ''}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data: blob:`,
+    // Os quadros do mapa vêm do OpenStreetMap.
+    `img-src 'self' data: blob: https://tile.openstreetmap.org`,
     `font-src 'self'`,
     `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
     `worker-src 'self'`,
@@ -43,6 +44,12 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set('Content-Security-Policy', csp)
 
   let response = NextResponse.next({ request: { headers: requestHeaders } })
+
+  // Publicação ainda sem banco configurado: o layout mostra um aviso (ver src/lib/env.ts).
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) {
+    response.headers.set('Content-Security-Policy', csp)
+    return response
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -97,6 +104,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Tudo, exceto arquivos estáticos e os ícones do PWA.
-    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icons/).*)',
   ],
 }

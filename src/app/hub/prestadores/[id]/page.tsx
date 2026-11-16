@@ -7,7 +7,8 @@ import { decideProvider, resolveSuspension, suspendProvider } from '@/features/h
 import { requireRole } from '@/lib/auth/session'
 import { formatDateTime, formatDoc, formatPercent, formatPhone, providerStatus } from '@/lib/format'
 import { rpc } from '@/lib/rpc'
-import type { ProviderStatus, Rating, Suspension } from '@/lib/types'
+import { DocumentList } from '@/features/documents/list'
+import type { ProviderDocument, ProviderStatus, Rating, Suspension } from '@/lib/types'
 
 export const metadata: Metadata = { title: 'Prestador' }
 
@@ -17,6 +18,7 @@ type Detail = {
   experience: string; radius_km: number; review_note: string | null; applied_at: string | null; decided_at: string | null
   rating: Rating; completed: number
   services: { id: string; name: string; status: 'requested' | 'approved' | 'rejected' }[]
+  documents: ProviderDocument[]
   acceptances: { version: string; accepted_at: string; signer_name: string; ip: string | null; body_sha256: string; commission_percent: number; payout_days: number; current: boolean }[]
   suspensions: Suspension[]
 }
@@ -52,6 +54,9 @@ export default async function ProviderDetailPage({ params }: { params: Promise<{
         />
         {p.experience ? <p className="border-t border-border px-4 py-3 text-sm whitespace-pre-wrap sm:px-5">{p.experience}</p> : null}
       </Panel>
+
+      <SectionTitle>Documentos enviados</SectionTitle>
+      <Panel><DocumentList documents={p.documents} /></Panel>
 
       {p.status === 'pending' || p.status === 'approved' ? (
         <>

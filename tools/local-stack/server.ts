@@ -70,6 +70,8 @@ export async function startLocalStack(options: { database: string; port: number;
   // tratamento o emulador cairia. O pool abre conexões novas sozinho.
   pool.on('error', () => undefined)
   const issuer = `http://127.0.0.1:${options.port}/auth/v1`
+  const recoveryTokens = new Map<string, { userId: string; expires: number }>()
+  const outbox = new Map<string, string>()
 
   async function userJson(id: string) {
     const { rows } = await pool.query<UserRow>('select * from auth.users where id = $1', [id])
@@ -196,6 +198,37 @@ export async function startLocalStack(options: { database: string; port: number;
       const session = await pool.query<{ id: string }>(
         `insert into auth.sessions (user_id, aal, amr) values ($1, 'aal1', $2::jsonb) returning id`,
         [created.rows[0].id, JSON.stringify([{ method: 'password', timestamp: Math.floor(Date.now() / 1000) }])],
+      )
+      return issueSession(session.rows[0].id)
+    }
+
+    // Recuperação de senha. O emulador não envia e-mail: guarda o link em
+    // memória e o mostra no console e em GET /auth/v1/local/outbox (para testes).
+    if (path === '/recover' && method === 'POST') {
+      const email = String(body.email ?? '').toLowerCase()
+      const { rows } = await pool.query<{ id: string }>('select id from auth.users where email = $1', [email])
+      if (rows.length > 0) {
+        const tokenHash = randomBytes(24).toString('hex')
+        recoveryTokens.set(tokenHash, { userId: rows[0].id, expires: Date.now() + 60 * 60 * 1000 })
+        const site = (url.searchParams.get('redirect_to') ?? 'http://localhost:3000').replace(/\/$/, '')
+        const link = `${new URL(site).origin}/auth/confirmar?token_hash=${tokenHash}&type=recovery`
+        outbox.set(email, link)
+        if (!options.quiet) console.log(`[e-mail local] recuperação de senha para ${email}: ${link}`)
+      }
+      return {} // mesma resposta para e-mail existente ou não
+    }
+    if (path === '/local/outbox' && method === 'GET') {
+      return { link: outbox.get(String(url.searchParams.get('email') ?? '').toLowerCase()) ?? null }
+    }
+    if (path === '/verify' && method === 'POST') {
+      const entry = recoveryTokens.get(String(body.token_hash ?? ''))
+      if (!entry || entry.expires < Date.now() || body.type !== 'recovery') {
+        throw new HttpError(403, 'otp_expired', 'Email link is invalid or has expired')
+      }
+      recoveryTokens.delete(String(body.token_hash))
+      const session = await pool.query<{ id: string }>(
+        `insert into auth.sessions (user_id, aal, amr) values ($1, 'aal1', $2::jsonb) returning id`,
+        [entry.userId, JSON.stringify([{ method: 'recovery', timestamp: Math.floor(Date.now() / 1000) }])],
       )
       return issueSession(session.rows[0].id)
     }

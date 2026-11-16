@@ -81,6 +81,19 @@ export const eventLabel: Record<string, string> = {
   extra_proposed: 'Orçamento adicional enviado',
   extra_approved: 'Adicional aprovado pelo cliente',
   extra_rejected: 'Adicional recusado pelo cliente',
+  payment_claimed: 'Cliente informou o pagamento por Pix',
   paid: 'Pagamento confirmado',
   payout: 'Repasse feito ao prestador',
+}
+
+export const documentKind: Record<string, string> = {
+  identity: 'Documento de identificação',
+  address: 'Comprovante de endereço',
+  certificate: 'Certificado ou curso',
+  equipment: 'Foto de equipamento',
+  other: 'Outro',
+}
+
+export function formatSize(bytes: number): string {
+  return bytes >= 1048576 ? `${(bytes / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
 }

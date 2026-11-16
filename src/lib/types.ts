@@ -30,12 +30,13 @@ export type ServiceRequest = {
   started_at: string | null
   completed_at: string | null
   paid_at: string | null
+  payment_claimed_at: string | null
   cancelled_at: string | null
   cancelled_by: Role | null
   cancel_reason: string | null
   vehicle: { brand: string; model: string; year: number | null; plate?: string }
   customer: { name: string; phone: string } | null
-  provider: { id: string; name: string; phone: string; rating: Rating; distance_km: number | null } | null
+  provider: { id: string; name: string; phone: string; rating: Rating; lat: number | null; lng: number | null; distance_km: number | null } | null
   extras: { id: string; description: string; price: number; status: 'proposed' | 'approved' | 'rejected' }[]
   events: { kind: string; actor: Role | null; note: string | null; at: string }[]
   review: { rating: number; comment: string } | null
@@ -80,3 +81,7 @@ export type Contract = {
   payout_days: number
   acceptance: { accepted_at: string; signer_name: string; commission_percent: number; payout_days: number } | null
 }
+
+export type DocumentKind = 'identity' | 'address' | 'certificate' | 'equipment' | 'other'
+export type ProviderDocument = { id: string; kind: DocumentKind; file_name: string; mime: string; size: number; created_at: string }
+export type PaymentInfo = { mode: 'demo' | 'pix'; pix_key: string | null; pix_holder: string | null }

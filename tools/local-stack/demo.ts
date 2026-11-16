@@ -35,21 +35,24 @@ export async function loadDemo(database: string): Promise<void> {
       callRpc(client, claims[who], fn, args) as Promise<T>
 
     await callRpc(client, { role: 'service_role' }, 'promote_hub_admin', { p_email: DEMO_USERS.hub.email, p_full_name: DEMO_USERS.hub.name, p_phone: '98900000001' })
-    await call('cliente', 'register_profile', { p_full_name: DEMO_USERS.cliente.name, p_phone: '98900000002', p_role: 'customer' })
-    await call('ze', 'register_profile', { p_full_name: DEMO_USERS.ze.name, p_phone: '98900000003', p_role: 'provider' })
-    await call('novato', 'register_profile', { p_full_name: DEMO_USERS.novato.name, p_phone: '98900000004', p_role: 'provider' })
+    await call('cliente', 'register_profile', { p_full_name: DEMO_USERS.cliente.name, p_phone: '98900000002', p_role: 'customer', p_terms_version: 'demo' })
+    await call('ze', 'register_profile', { p_full_name: DEMO_USERS.ze.name, p_phone: '98900000003', p_role: 'provider', p_terms_version: 'demo' })
+    await call('novato', 'register_profile', { p_full_name: DEMO_USERS.novato.name, p_phone: '98900000004', p_role: 'provider', p_terms_version: 'demo' })
 
     await call('cliente', 'save_vehicle', { p_plate: 'DEM0A00', p_brand: 'Fiat', p_model: 'Argo', p_year: 2021 })
     const services = await call<{ id: string }[]>('cliente', 'list_services')
     const all = services.map((s) => s.id)
 
     // Zé: credenciado em tudo e com o contrato aceito. Nino: aguardando análise.
-    const apply = (who: 'ze' | 'novato', ids: string[]) =>
-      call(who, 'provider_apply', {
+    const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+    const apply = async (who: 'ze' | 'novato', ids: string[]) => {
+      await call(who, 'upload_document', { p_kind: 'identity', p_file_name: 'documento-ficticio.png', p_mime: 'image/png', p_content_base64: PNG_1PX })
+      await call(who, 'provider_apply', {
         p_doc_type: 'cpf', p_doc_number: who === 'ze' ? '00000000191' : '00000000272', p_legal_name: DEMO_USERS[who].name,
         p_city: 'São Luís', p_experience: 'Atendimento móvel com equipamento próprio (dados fictícios).',
         p_radius_km: 25, p_service_ids: ids, p_lat: SAO_LUIS.lat, p_lng: SAO_LUIS.lng,
       })
+    }
     await apply('ze', all)
     await call('hub', 'admin_decide_provider', { p_id: claims.ze.sub, p_approved_service_ids: all })
     const contract = await call<{ id: string }>('ze', 'current_contract')

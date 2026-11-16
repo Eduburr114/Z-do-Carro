@@ -107,7 +107,7 @@ as $$
     'commission_percent', r.commission_percent, 'commission_amount', r.commission_amount, 'provider_net', r.provider_net,
     'payment_status', r.payment_status, 'payout_status', r.payout_status, 'payout_due', r.payout_due,
     'created_at', r.created_at, 'accepted_at', r.accepted_at, 'started_at', r.started_at,
-    'completed_at', r.completed_at, 'paid_at', r.paid_at, 'cancelled_at', r.cancelled_at,
+    'completed_at', r.completed_at, 'paid_at', r.paid_at, 'payment_claimed_at', r.payment_claimed_at, 'cancelled_at', r.cancelled_at,
     'cancelled_by', r.cancelled_by, 'cancel_reason', r.cancel_reason,
     'vehicle', case when p_view = 'offer'
       then jsonb_build_object('brand', v.brand, 'model', v.model, 'year', v.year)
@@ -146,11 +146,12 @@ as $$
     'profile', (select jsonb_build_object('id', p.id, 'full_name', p.full_name, 'phone', p.phone, 'role', p.role)
                 from public.profiles p where p.id = auth.uid()),
     'provider', (select jsonb_build_object('status', pr.status, 'online', pr.online, 'contract_ok', app.contract_ok(pr.id))
-                 from public.providers pr where pr.id = auth.uid()))
+                 from public.providers pr where pr.id = auth.uid()),
+    'unread', (select count(*) from public.notifications n where n.user_id = auth.uid() and n.read_at is null))
 $$;
 
 -- Cadastro: só cliente ou prestador. Administradores da HUB são promovidos à parte.
-create function public.register_profile(p_full_name text, p_phone text, p_role text) returns void
+create function public.register_profile(p_full_name text, p_phone text, p_role text, p_terms_version text) returns void
 language plpgsql security definer set search_path = ''
 as $$
 declare
@@ -163,7 +164,11 @@ begin
   end if;
   if length(btrim(coalesce(p_full_name, ''))) < 3 then perform app.fail('invalid_name', 'Informe o nome completo.'); end if;
   if v_phone !~ '^[0-9]{10,13}$' then perform app.fail('invalid_phone', 'Informe um telefone com DDD.'); end if;
-  insert into public.profiles (id, full_name, phone, role) values (v_uid, btrim(p_full_name), v_phone, p_role::public.user_role);
+  if length(btrim(coalesce(p_terms_version, ''))) = 0 then
+    perform app.fail('terms_required', 'É preciso aceitar os termos de uso e a política de privacidade.');
+  end if;
+  insert into public.profiles (id, full_name, phone, role, terms_version, terms_accepted_at)
+  values (v_uid, btrim(p_full_name), v_phone, p_role::public.user_role, btrim(p_terms_version), now());
   if p_role = 'provider' then insert into public.providers (id) values (v_uid); end if;
 end $$;
 
@@ -317,21 +322,55 @@ begin
   perform app.log(v_request, case when p_approve then 'extra_approved' else 'extra_rejected' end, 'customer');
 end $$;
 
--- Pagamento SIMULADO: marca o pedido como pago e agenda o repasse. A integração
--- com o provedor de pagamentos (Pix com divisão) entra neste ponto.
-create function public.pay_request(p_id uuid) returns void
+-- Como o cliente paga. Sem chave Pix cadastrada pela HUB, o aplicativo fica em
+-- modo demonstração e o pagamento é simulado. A integração com um provedor de
+-- pagamentos (Pix com divisão automática) substitui estas três funções.
+create function public.payment_info() returns jsonb
+language sql stable security definer set search_path = ''
+as $$
+  select case when auth.uid() is null then null else jsonb_build_object(
+    'mode', case when s.pix_key is null then 'demo' else 'pix' end,
+    'pix_key', s.pix_key, 'pix_holder', s.pix_holder) end
+  from public.settings s
+$$;
+
+create function app.mark_paid(p_id uuid, p_actor public.user_role) returns void
 language plpgsql security definer set search_path = ''
 as $$
-declare
-  v_uid uuid := app.require_role('customer');
-  v_days integer;
+declare v_days integer;
 begin
   select payout_days into v_days from public.settings;
   update public.requests set payment_status = 'paid', paid_at = now(), payout_status = 'pending',
     payout_due = (now() + make_interval(days => v_days))::date
-  where id = p_id and customer_id = v_uid and status = 'completed' and payment_status = 'pending';
+  where id = p_id and status = 'completed' and payment_status = 'pending';
   if not found then perform app.fail('cannot_pay', 'Este pedido não está aguardando pagamento.'); end if;
-  perform app.log(p_id, 'paid', 'customer');
+  perform app.log(p_id, 'paid', p_actor);
+end $$;
+
+-- Modo demonstração: o próprio cliente confirma e nada é cobrado.
+create function public.pay_request(p_id uuid) returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare v_uid uuid := app.require_role('customer');
+begin
+  if (select pix_key from public.settings) is not null then
+    perform app.fail('pix_required', 'O pagamento deste pedido é por Pix.');
+  end if;
+  if not exists (select 1 from public.requests where id = p_id and customer_id = v_uid) then perform app.deny(); end if;
+  perform app.mark_paid(p_id, 'customer');
+end $$;
+
+-- Pix: o cliente avisa que pagou; quem confirma o recebimento é a HUB.
+create function public.claim_payment(p_id uuid) returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare v_uid uuid := app.require_role('customer');
+begin
+  if (select pix_key from public.settings) is null then perform app.fail('demo_mode', 'O pagamento por Pix não está habilitado.'); end if;
+  update public.requests set payment_claimed_at = now()
+  where id = p_id and customer_id = v_uid and status = 'completed' and payment_status = 'pending' and payment_claimed_at is null;
+  if not found then perform app.fail('cannot_pay', 'Este pedido não está aguardando pagamento.'); end if;
+  perform app.log(p_id, 'payment_claimed', 'customer');
 end $$;
 
 create function public.review_request(p_id uuid, p_rating integer, p_comment text default '') returns void
@@ -391,6 +430,9 @@ begin
   if length(btrim(coalesce(p_city, ''))) < 2 then perform app.fail('invalid_city', 'Informe a cidade de atuação.'); end if;
   if coalesce(p_radius_km, 0) not between 1 and 200 then perform app.fail('invalid_radius', 'Informe um raio de atendimento entre 1 e 200 km.'); end if;
   if coalesce(array_length(p_service_ids, 1), 0) = 0 then perform app.fail('no_services', 'Escolha ao menos um serviço.'); end if;
+  if not exists (select 1 from public.provider_documents where provider_id = v_uid and kind = 'identity') then
+    perform app.fail('identity_required', 'Envie ao menos um documento de identificação antes de concluir.');
+  end if;
   if exists (select 1 from unnest(p_service_ids) s where not exists (select 1 from public.services where id = s and active)) then
     perform app.fail('service_unavailable', 'Um dos serviços escolhidos não está disponível.');
   end if;
@@ -659,7 +701,10 @@ begin
         'awaiting_payment', coalesce(sum(total) filter (where status = 'completed' and payment_status = 'pending'), 0))
       from public.requests),
     'rating', (select jsonb_build_object('average', round(avg(rating)::numeric, 1), 'count', count(*)) from public.reviews),
-    'settings', (select to_jsonb(s) from public.settings s),
+    'payments_to_confirm', (select count(*) from public.requests where payment_status = 'pending' and payment_claimed_at is not null),
+    'settings', (select jsonb_build_object('commission_percent', s.commission_percent, 'payout_days', s.payout_days,
+        'search_radius_km', s.search_radius_km, 'pix_key', s.pix_key, 'pix_holder', s.pix_holder,
+        'setup_code_pending', s.setup_code_hash is not null) from public.settings s),
     'contract', (select jsonb_build_object('version', version, 'title', title) from public.contract_versions where is_current));
 end $$;
 
@@ -690,6 +735,9 @@ begin
       'completed', (select count(*) from public.requests r where r.provider_id = p.id and r.status = 'completed'),
       'services', coalesce((select jsonb_agg(jsonb_build_object('id', s.id, 'name', s.name, 'status', ps.status) order by s.sort, s.name)
         from public.provider_services ps join public.services s on s.id = ps.service_id where ps.provider_id = p.id), '[]'::jsonb),
+      'documents', coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'kind', d.kind, 'file_name', d.file_name,
+          'mime', d.mime, 'size', d.size, 'created_at', d.created_at) order by d.created_at)
+        from public.provider_documents d where d.provider_id = p.id), '[]'::jsonb),
       'acceptances', coalesce((select jsonb_agg(jsonb_build_object('version', v.version, 'accepted_at', a.accepted_at,
           'signer_name', a.signer_name, 'ip', a.ip, 'body_sha256', a.body_sha256,
           'commission_percent', a.commission_percent, 'payout_days', a.payout_days, 'current', v.is_current) order by a.accepted_at desc)
@@ -766,6 +814,29 @@ begin
   perform app.log(p_request_id, 'payout', 'hub_admin');
 end $$;
 
+create function public.admin_confirm_payment(p_request_id uuid) returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  perform app.require_role('hub_admin');
+  perform app.mark_paid(p_request_id, 'hub_admin');
+end $$;
+
+-- Chave Pix da HUB. Em branco, o aplicativo volta ao modo demonstração.
+create function public.admin_save_pix(p_pix_key text, p_pix_holder text) returns void
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_key text := nullif(btrim(coalesce(p_pix_key, '')), '');
+  v_holder text := nullif(btrim(coalesce(p_pix_holder, '')), '');
+begin
+  perform app.require_role('hub_admin');
+  if v_key is not null and (length(v_key) < 5 or v_holder is null or length(v_holder) < 3) then
+    perform app.fail('invalid_pix', 'Informe a chave Pix e o nome do titular que aparece no comprovante.');
+  end if;
+  update public.settings set pix_key = v_key, pix_holder = case when v_key is null then null else v_holder end, updated_at = now();
+end $$;
+
 create function public.admin_save_settings(p_commission_percent numeric, p_payout_days integer, p_search_radius_km integer) returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -819,24 +890,4 @@ begin
   if exists (select 1 from public.providers where id = v_id) then perform app.fail('is_provider', 'Esta conta é de prestador.'); end if;
   insert into public.profiles (id, full_name, phone, role) values (v_id, p_full_name, p_phone, 'hub_admin')
   on conflict (id) do update set role = 'hub_admin';
-end $$;
-
--- =============================================================================
--- Privilégios: revoga tudo e libera somente a execução das funções da API.
--- =============================================================================
-revoke all on all tables in schema public from public, anon, authenticated;
-revoke all on all sequences in schema public from public, anon, authenticated;
-revoke all on all routines in schema public from public, anon, authenticated, service_role;
-revoke all on all routines in schema app from public, anon, authenticated, service_role;
-
-do $$
-declare f record;
-begin
-  for f in select p.oid::regprocedure as sig, p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' loop
-    if f.proname = 'promote_hub_admin' then
-      execute format('grant execute on function %s to service_role', f.sig);
-    else
-      execute format('grant execute on function %s to authenticated', f.sig);
-    end if;
-  end loop;
 end $$;

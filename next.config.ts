@@ -20,8 +20,21 @@ const nextConfig: NextConfig = {
     },
   },
   reactStrictMode: true,
+  experimental: {
+    // Documentos do credenciamento (até 3 MB) chegam por Server Action, em base64.
+    serverActions: { bodySizeLimit: '5mb' },
+  },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }]
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        ],
+      },
+    ]
   },
 }
 

@@ -51,6 +51,10 @@ export const payRequest = formAction(z.object({ id: zId }), async ({ id }, { rpc
   await rpc('pay_request', { p_id: id })
 })
 
+export const claimPayment = formAction(z.object({ id: zId }), async ({ id }, { rpc }) => {
+  await rpc('claim_payment', { p_id: id })
+})
+
 export const reviewRequest = formAction(
   z.object({
     id: zId,

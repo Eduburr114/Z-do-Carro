@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { AutoRefresh } from '@/components/app/auto-refresh'
 import { ActionForm, SubmitButton } from '@/components/ui/form'
-import { markPayout } from '@/features/hub/actions'
+import { confirmPayment, markPayout } from '@/features/hub/actions'
 import { Badge, Empty, Panel } from '@/components/ui/primitives'
 import { StatusBadge } from '@/features/requests/components'
 import { requireRole } from '@/lib/auth/session'
@@ -29,7 +29,9 @@ export default async function HubRequestsPage() {
                   <p className="font-semibold">nº {r.number} · {r.service.name}</p>
                   <StatusBadge status={r.status} />
                   {r.status === 'completed' ? (
-                    <Badge tone={r.payment_status === 'paid' ? 'success' : 'warning'}>{r.payment_status === 'paid' ? 'Pago' : 'Aguardando pagamento'}</Badge>
+                    <Badge tone={r.payment_status === 'paid' ? 'success' : 'warning'}>
+                      {r.payment_status === 'paid' ? 'Pago' : r.payment_claimed_at ? 'Pix informado, a confirmar' : 'Aguardando pagamento'}
+                    </Badge>
                   ) : null}
                   {r.payout_status === 'paid' ? <Badge tone="success">Repassado</Badge> : null}
                 </div>
@@ -41,6 +43,14 @@ export default async function HubRequestsPage() {
                   Total {formatMoney(r.total)} · comissão {formatMoney(r.commission_amount)} · líquido do prestador {formatMoney(r.provider_net)}
                 </p>
                 {r.cancel_reason ? <p className="text-sm text-muted-foreground">Motivo do cancelamento: {r.cancel_reason}</p> : null}
+                {r.status === 'completed' && r.payment_status === 'pending' ? (
+                  <ActionForm action={confirmPayment} successMessage="Pagamento confirmado." className="mt-2">
+                    <input type="hidden" name="id" value={r.id} />
+                    <SubmitButton size="sm" variant={r.payment_claimed_at ? 'primary' : 'secondary'}>
+                      Confirmar recebimento de {formatMoney(r.total)}
+                    </SubmitButton>
+                  </ActionForm>
+                ) : null}
                 {r.payout_status === 'pending' ? (
                   <ActionForm action={markPayout} successMessage="Repasse registrado." className="mt-2">
                     <input type="hidden" name="id" value={r.id} />

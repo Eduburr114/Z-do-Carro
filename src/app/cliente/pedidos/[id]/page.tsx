@@ -6,12 +6,14 @@ import { RatingBadge, SectionTitle } from '@/components/app/bits'
 import { buttonVariants } from '@/components/ui/button'
 import { ActionForm, SubmitButton, TextareaField } from '@/components/ui/form'
 import { Notice, Panel } from '@/components/ui/primitives'
-import { cancelRequest, decideExtra, payRequest, reviewRequest } from '@/features/customer/actions'
+import { cancelRequest, claimPayment, decideExtra, payRequest, reviewRequest } from '@/features/customer/actions'
+import { CopyButton } from '@/components/app/copy-button'
+import { LiveMap, type MapPoint } from '@/features/map/live-map'
 import { PriceSummary, StatusBadge, StatusSteps, Timeline } from '@/features/requests/components'
 import { requireRole } from '@/lib/auth/session'
 import { formatKm, formatMoney, formatPhone } from '@/lib/format'
 import { AppError, rpc } from '@/lib/rpc'
-import type { ServiceRequest } from '@/lib/types'
+import type { PaymentInfo, ServiceRequest } from '@/lib/types'
 
 export const metadata: Metadata = { title: 'Pedido' }
 
@@ -35,10 +37,19 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
   const proposed = request.extras.filter((extra) => extra.status === 'proposed')
   const canCancel = ['searching', 'accepted', 'en_route'].includes(request.status)
   const mustPay = request.status === 'completed' && request.payment_status === 'pending'
+  const payment = mustPay ? await rpc<PaymentInfo>('payment_info') : null
+  const points: MapPoint[] = []
+  if (live && request.lat !== null && request.lng !== null) {
+    points.push({ lat: request.lat, lng: request.lng, label: 'Seu carro', kind: 'car' })
+    if (request.provider?.lat != null && request.provider.lng != null && request.status !== 'in_progress') {
+      points.push({ lat: request.provider.lat, lng: request.provider.lng, label: 'Prestador', kind: 'provider' })
+    }
+  }
 
   return (
     <>
-      {live ? <AutoRefresh seconds={6} /> : null}
+      {/* Também enquanto o pagamento aguarda confirmação: a tela muda quando a HUB confere o Pix. */}
+      {live || mustPay ? <AutoRefresh seconds={6} /> : null}
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">Pedido nº {request.number}</p>
         <StatusBadge status={request.status} />
@@ -49,6 +60,8 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
       </p>
 
       {request.status !== 'cancelled' ? <div className="mt-6"><StatusSteps status={request.status} /></div> : null}
+
+      {points.length > 0 ? <div className="mt-5"><LiveMap points={points} /></div> : null}
 
       {request.status === 'searching' ? (
         <Notice tone="info" className="mt-5">Avisamos os prestadores credenciados da região. Esta tela se atualiza sozinha.</Notice>
@@ -75,7 +88,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         </Panel>
       ))}
 
-      {mustPay ? (
+      {mustPay && payment?.mode === 'demo' ? (
         <Panel className="mt-5 px-4 py-4">
           <p className="text-lg font-semibold">Pagamento</p>
           <p className="mt-1 text-sm text-muted-foreground">Confira o resumo abaixo e confirme o pagamento.</p>
@@ -83,7 +96,43 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
             <input type="hidden" name="id" value={request.id} />
             <SubmitButton size="lg" className="w-full">Pagar {formatMoney(request.total)}</SubmitButton>
           </ActionForm>
-          <p className="mt-2 text-xs text-muted-foreground">Ambiente de demonstração: o pagamento é simulado, nenhuma cobrança é feita.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Modo demonstração: o pagamento é simulado, nenhuma cobrança é feita.</p>
+        </Panel>
+      ) : null}
+
+      {mustPay && payment?.mode === 'pix' ? (
+        <Panel className="mt-5 px-4 py-4">
+          <p className="text-lg font-semibold">Pague {formatMoney(request.total)} por Pix</p>
+          {request.payment_claimed_at ? (
+            <Notice tone="info" title="Aguardando a confirmação da HUB" className="mt-3">
+              Você informou o pagamento. Assim que o Pix for conferido, o pedido é encerrado e você pode avaliar o atendimento.
+            </Notice>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-muted-foreground">Use a chave abaixo no aplicativo do seu banco e depois toque em “Já paguei”.</p>
+              <dl className="mt-3 space-y-2 rounded-(--radius-control) bg-surface-2 px-3 py-3 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">Chave Pix</dt>
+                  <dd className="flex items-center justify-between gap-2 font-semibold break-all">
+                    {payment.pix_key}
+                    <CopyButton text={payment.pix_key ?? ''} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Favorecido</dt>
+                  <dd className="font-semibold">{payment.pix_holder}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Valor · identificação</dt>
+                  <dd className="font-semibold tabular-nums">{formatMoney(request.total)} · pedido nº {request.number}</dd>
+                </div>
+              </dl>
+              <ActionForm action={claimPayment} successMessage="Pagamento informado." className="mt-3">
+                <input type="hidden" name="id" value={request.id} />
+                <SubmitButton size="lg" className="w-full">Já paguei</SubmitButton>
+              </ActionForm>
+            </>
+          )}
         </Panel>
       ) : null}
 

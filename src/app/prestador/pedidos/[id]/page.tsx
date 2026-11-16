@@ -8,6 +8,7 @@ import { ActionForm, Field, MoneyField, SubmitButton, TextareaField } from '@/co
 import { Badge, Notice, Panel } from '@/components/ui/primitives'
 import { acceptRequest, advanceRequest, declineRequest, proposeExtra, withdrawRequest } from '@/features/provider/actions'
 import { PositionBeacon } from '@/features/provider/online-toggle'
+import { LiveMap } from '@/features/map/live-map'
 import { PriceSummary, StatusBadge, StatusSteps, Timeline } from '@/features/requests/components'
 import { requireRole } from '@/lib/auth/session'
 import { formatDate, formatKm, formatMoney, formatPhone } from '@/lib/format'
@@ -54,6 +55,10 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       </p>
 
       {!offer && request.status !== 'cancelled' ? <div className="mt-6"><StatusSteps status={request.status} /></div> : null}
+
+      {request.lat !== null && request.lng !== null && (offer || live) ? (
+        <div className="mt-5"><LiveMap points={[{ lat: request.lat, lng: request.lng, label: 'Carro do cliente', kind: 'car' }]} /></div>
+      ) : null}
 
       <Panel className="mt-5 px-4 py-3.5">
         <p className="flex items-start gap-1.5">

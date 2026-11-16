@@ -9,6 +9,10 @@ export type Session = {
   email: string | null
   profile: { id: string; full_name: string; phone: string; role: Role } | null
   provider: { status: ProviderStatus; online: boolean; contract_ok: boolean } | null
+  /** Avisos ainda não lidos. */
+  unread: number
+  /** A sessão foi aberta por um link de recuperação de senha. */
+  recovery: boolean
 }
 
 /**
@@ -21,12 +25,14 @@ export const getSession = cache(async (): Promise<Session | null> => {
   if (claimsError || !claimsData?.claims?.sub) return null
   const { data, error } = await supabase.rpc('my_access')
   if (error || !data) return null
-  const access = data as { user_id: string; profile: Session['profile']; provider: Session['provider'] }
+  const access = data as { user_id: string; profile: Session['profile']; provider: Session['provider']; unread: number }
   return {
     userId: access.user_id,
     email: (claimsData.claims.email as string | undefined) ?? null,
     profile: access.profile,
     provider: access.provider,
+    unread: access.unread ?? 0,
+    recovery: ((claimsData.claims.amr as { method?: string }[] | undefined) ?? []).some((entry) => entry.method === 'recovery' || entry.method === 'otp'),
   }
 })
 

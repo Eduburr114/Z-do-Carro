@@ -45,6 +45,23 @@ export const markPayout = formAction(z.object({ id: zId }), async ({ id }, { rpc
   await rpc('admin_mark_payout', { p_request_id: id })
 })
 
+export const confirmPayment = formAction(z.object({ id: zId }), async ({ id }, { rpc }) => {
+  await rpc('admin_confirm_payment', { p_request_id: id })
+})
+
+export const savePix = formAction(
+  z.object({ pix_key: z.string().trim().max(140).optional(), pix_holder: z.string().trim().max(120).optional() }),
+  async ({ pix_key, pix_holder }, { rpc }) => {
+    await rpc('admin_save_pix', { p_pix_key: pix_key ?? '', p_pix_holder: pix_holder ?? '' })
+  },
+)
+
+/** Gera o código de ativação para um novo acesso da equipe. Ele é mostrado uma única vez. */
+export const newSetupCode = formAction(z.object({}), async (_input, { rpc }) => {
+  const code = await rpc<string>('admin_new_setup_code')
+  return { data: { code } }
+})
+
 export const saveSettings = formAction(
   z.object({
     commission_percent: z.string().trim().transform((v) => v.replace(',', '.')).pipe(z.string().regex(/^\d{1,2}(\.\d{1,2})?$/, 'Informe a comissão, de 0 a 60.')).transform(Number),

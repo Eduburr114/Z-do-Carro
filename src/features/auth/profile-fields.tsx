@@ -1,4 +1,5 @@
-import { Field } from '@/components/ui/form'
+import Link from 'next/link'
+import { CheckboxField, Field } from '@/components/ui/form'
 
 /** Escolha do tipo de conta e dados básicos, usados no cadastro e ao completar o perfil. */
 export function ProfileFields({ defaultRole }: { defaultRole: 'customer' | 'provider' }) {
@@ -23,5 +24,20 @@ export function ProfileFields({ defaultRole }: { defaultRole: 'customer' | 'prov
       <Field label="Nome completo" name="full_name" autoComplete="name" required />
       <Field label="Celular com DDD" name="phone" type="tel" inputMode="tel" autoComplete="tel-national" placeholder="(98) 90000-0000" required />
     </>
+  )
+}
+
+/** Aceite dos Termos de Uso e da Política de Privacidade; a versão aceita fica gravada no cadastro. */
+export function TermsField() {
+  return (
+    <div>
+      <CheckboxField name="terms" label="Li e aceito os Termos de Uso e a Política de Privacidade" />
+      <p className="mt-1.5 pl-8 text-sm text-muted-foreground">
+        Leia os{' '}
+        <Link href="/termos" target="_blank" className="font-semibold text-primary underline-offset-4 hover:underline">Termos de Uso</Link>
+        {' '}e a{' '}
+        <Link href="/privacidade" target="_blank" className="font-semibold text-primary underline-offset-4 hover:underline">Política de Privacidade</Link>.
+      </p>
+    </div>
   )
 }

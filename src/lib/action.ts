@@ -2,6 +2,7 @@ import 'server-only'
 import { revalidatePath } from 'next/cache'
 import type { z } from 'zod'
 import { getSession, type Session } from '@/lib/auth/session'
+import { flushPushesAfterResponse } from '@/lib/push'
 import { AppError, rpc } from '@/lib/rpc'
 import type { ActionState } from '@/lib/action-state'
 
@@ -47,6 +48,8 @@ export function formAction<S extends z.ZodType>(schema: S, handler: Handler<z.ou
       } finally {
         // Também quando o handler termina em redirect(): a tela de destino precisa de dados novos.
         revalidatePath('/', 'layout')
+        // Os avisos gerados no banco por esta ação saem como push logo depois da resposta.
+        flushPushesAfterResponse()
       }
       return { ok: true, at: Date.now(), ...result }
     } catch (error) {

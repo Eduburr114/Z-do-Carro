@@ -2,18 +2,25 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { GeoFields } from '@/components/app/geo-fields'
 import { ActionForm, CheckboxField, Field, SelectField, SubmitButton, TextareaField } from '@/components/ui/form'
-import { Notice } from '@/components/ui/primitives'
+import { Notice, Panel } from '@/components/ui/primitives'
+import { SectionTitle } from '@/components/app/bits'
+import { DocumentList } from '@/features/documents/list'
+import { DocumentUploader } from '@/features/documents/uploader'
 import { applyProvider } from '@/features/provider/actions'
 import { requireRole } from '@/lib/auth/session'
 import { formatMoney } from '@/lib/format'
 import { rpc } from '@/lib/rpc'
-import type { ProviderHome, Service } from '@/lib/types'
+import type { ProviderDocument, ProviderHome, Service } from '@/lib/types'
 
 export const metadata: Metadata = { title: 'Credenciamento' }
 
 export default async function ApplyPage() {
   const session = await requireRole('provider')
-  const [home, services] = await Promise.all([rpc<ProviderHome>('provider_home'), rpc<Service[]>('list_services')])
+  const [home, services, documents] = await Promise.all([
+    rpc<ProviderHome>('provider_home'),
+    rpc<Service[]>('list_services'),
+    rpc<ProviderDocument[]>('my_documents'),
+  ])
   if (!['draft', 'rejected', 'closed'].includes(home.status)) redirect('/prestador')
   return (
     <>
@@ -22,6 +29,16 @@ export default async function ApplyPage() {
       <Notice tone="info" className="mb-5">
         Você atua como profissional autônomo ou empresa independente: escolhe quando ficar disponível, quais pedidos aceitar e pode atender outros clientes e plataformas.
       </Notice>
+      <SectionTitle>1. Documentos</SectionTitle>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Envie ao menos um documento de identificação com foto. Certificados e fotos dos equipamentos ajudam na análise técnica. Fotos ou PDF de até 3 MB.
+      </p>
+      <Panel>
+        <DocumentList documents={documents} removable />
+        <div className="border-t border-border px-4 py-4"><DocumentUploader /></div>
+      </Panel>
+
+      <SectionTitle>2. Seus dados e serviços</SectionTitle>
       <ActionForm action={applyProvider} redirectTo="/prestador" successMessage="Credenciamento enviado para análise." resetOnSuccess={false}>
         <div className="grid grid-cols-[7rem_1fr] gap-3">
           <SelectField label="Documento" name="doc_type" defaultValue="cpf">

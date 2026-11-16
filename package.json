@@ -12,7 +12,8 @@
     "test": "vitest run",
     "local:db": "tsx tools/local-stack/demo.ts",
     "local:api": "tsx tools/local-stack/server.ts",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
@@ -21,6 +22,7 @@
     "@supabase/supabase-js": "2.119.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "leaflet": "1.9.4",
     "lucide-react": "1.71.0",
     "next": "16.4.6",
     "react": "19.3.1",
@@ -28,14 +30,18 @@
     "server-only": "0.0.1",
     "sonner": "2.0.8",
     "tailwind-merge": "3.7.0",
+    "web-push": "4.0.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/turbopack": "4.3.5",
+    "@types/leaflet": "1.9.21",
     "@types/node": "^22.20.5",
     "@types/pg": "8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "3.6.4",
     "eslint": "^10.14.0",
     "eslint-config-next": "16.4.6",
     "jose": "6.2.17",
@@ -47,5 +53,7 @@
     "vitest": "5.1.0"
   },
   "packageManager": "pnpm@10.28.0",
-  "engines": { "node": ">=20.9" }
+  "engines": {
+    "node": ">=20.9"
+  }
 }

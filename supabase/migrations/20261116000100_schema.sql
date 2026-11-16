@@ -38,6 +38,9 @@ create table public.profiles (
   full_name text not null check (length(btrim(full_name)) between 3 and 120),
   phone text not null check (phone ~ '^[0-9]{10,13}$'),
   role public.user_role not null,
+  -- Versão dos termos de uso e da política de privacidade aceitos no cadastro.
+  terms_version text,
+  terms_accepted_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -74,6 +77,12 @@ create table public.settings (
   commission_percent numeric(5,2) not null default 20.00 check (commission_percent between 0 and 60),
   payout_days integer not null default 7 check (payout_days between 0 and 60),
   search_radius_km integer not null default 25 check (search_radius_km between 1 and 200),
+  -- Pagamento: sem chave Pix, o aplicativo fica em modo demonstração (pagamento
+  -- simulado). Com a chave, o cliente paga por Pix à HUB e a HUB confirma.
+  pix_key text check (length(btrim(pix_key)) between 5 and 140),
+  pix_holder text check (length(btrim(pix_holder)) between 3 and 120),
+  -- Código de ativação (só o hash) para criar um acesso da equipe da HUB.
+  setup_code_hash text,
   updated_at timestamptz not null default now()
 );
 
@@ -191,6 +200,8 @@ create table public.requests (
   accepted_at timestamptz,
   started_at timestamptz,
   completed_at timestamptz,
+  -- Pix manual: o cliente avisa que pagou e a HUB confirma o recebimento.
+  payment_claimed_at timestamptz,
   paid_at timestamptz,
   payout_at timestamptz,
   cancelled_at timestamptz,
@@ -240,6 +251,55 @@ create table public.reviews (
   rating integer not null check (rating between 1 and 5),
   comment text not null default '',
   created_at timestamptz not null default now()
+);
+
+-- -----------------------------------------------------------------------------
+-- Documentos do credenciamento (cláusulas 4.1 e 4.2): identidade, certificados
+-- e fotos dos equipamentos. Ficam no banco, fora de qualquer endereço público;
+-- só o próprio prestador e a HUB conseguem abrir.
+-- -----------------------------------------------------------------------------
+create table public.provider_documents (
+  id uuid primary key default gen_random_uuid(),
+  provider_id uuid not null references public.providers (id),
+  kind text not null check (kind in ('identity', 'address', 'certificate', 'equipment', 'other')),
+  file_name text not null check (length(file_name) between 1 and 120),
+  mime text not null check (mime in ('image/jpeg', 'image/png', 'image/webp', 'application/pdf')),
+  size integer not null check (size between 1 and 3145728),
+  content bytea not null,
+  created_at timestamptz not null default now()
+);
+create index provider_documents_provider on public.provider_documents (provider_id, created_at);
+
+-- -----------------------------------------------------------------------------
+-- Avisos (dentro do aplicativo e por push)
+-- -----------------------------------------------------------------------------
+create table public.notifications (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles (id),
+  title text not null,
+  body text not null,
+  url text not null,
+  created_at timestamptz not null default now(),
+  read_at timestamptz,
+  push_sent_at timestamptz
+);
+create index notifications_user on public.notifications (user_id, id desc);
+create index notifications_push_pending on public.notifications (id) where push_sent_at is null;
+
+create table public.push_subscriptions (
+  endpoint text primary key check (endpoint ~ '^https://'),
+  user_id uuid not null references public.profiles (id),
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+create index push_subscriptions_user on public.push_subscriptions (user_id);
+
+-- Limite de tentativas (login, recuperação de senha, código de ativação).
+create table public.rate_limits (
+  key text primary key,
+  count integer not null,
+  window_start timestamptz not null default now()
 );
 
 -- -----------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { Toaster } from 'sonner'
 import '@fontsource-variable/figtree'
 import '@fontsource-variable/bricolage-grotesque'
+import { isConfigured } from '@/lib/env'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -28,7 +29,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="pt-BR">
       <body className="min-h-dvh antialiased">
-        {children}
+        {isConfigured() ? (
+          children
+        ) : (
+          <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-5 text-center">
+            <h1 className="text-2xl font-semibold">Zé do Carro em configuração</h1>
+            <p className="mt-2 text-muted-foreground">O aplicativo foi publicado, mas ainda não está ligado ao banco de dados. Volte em breve.</p>
+          </main>
+        )}
         <Toaster position="top-center" richColors closeButton />
       </body>
     </html>

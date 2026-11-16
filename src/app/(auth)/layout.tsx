@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Link href="/"><Wordmark className="text-xl" /></Link>
         </div>
       </header>
-      <main className="mx-auto max-w-md px-5 py-8">{children}</main>
+      <main className="mx-auto max-w-md px-5 py-8 has-[article]:max-w-2xl">{children}</main>
     </div>
   )
 }

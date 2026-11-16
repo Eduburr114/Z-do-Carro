@@ -15,6 +15,9 @@ export default function LoginPage() {
         <Field label="Senha" name="password" type="password" autoComplete="current-password" required />
         <SubmitButton size="lg" className="w-full">Entrar</SubmitButton>
       </ActionForm>
+      <p className="mt-4 text-sm">
+        <Link href="/recuperar" className="font-semibold text-primary underline-offset-4 hover:underline">Esqueci minha senha</Link>
+      </p>
       <p className="mt-8 text-sm text-muted-foreground">
         Ainda não tem conta?{' '}
         <Link href="/cadastro" className="font-semibold text-primary underline-offset-4 hover:underline">Criar conta</Link>

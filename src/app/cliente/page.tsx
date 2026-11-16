@@ -25,8 +25,8 @@ export default async function CustomerHome() {
 
       {toPay.map((request) => (
         <Notice key={request.id} tone="warning" title="Atendimento concluído" className="mt-4">
-          {request.service.name}: falta pagar {formatMoney(request.total)}.{' '}
-          <Link href={`/cliente/pedidos/${request.id}`} className="font-semibold underline">Pagar agora</Link>
+          {request.service.name}: {request.payment_claimed_at ? `pagamento de ${formatMoney(request.total)} informado, aguardando a confirmação da HUB.` : `falta pagar ${formatMoney(request.total)}.`}{' '}
+          <Link href={`/cliente/pedidos/${request.id}`} className="font-semibold underline">{request.payment_claimed_at ? 'Ver pedido' : 'Pagar agora'}</Link>
         </Notice>
       ))}
 
