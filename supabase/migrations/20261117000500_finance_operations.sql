@@ -103,11 +103,13 @@ as $$
 begin
   perform app.require_service_role();
   return coalesce((select jsonb_agg(jsonb_build_object('payment_id', p.id, 'external_id', p.external_id,
-      'attempt_key', p.attempt_key, 'status', p.status, 'remote_cancel', p.remote_cancel_pending))
+      'attempt_key', p.attempt_key, 'status', p.status, 'remote_cancel', p.remote_cancel_pending,
+      'needs_qr', p.status = 'pending' and p.pix_payload is null))
     from (select * from public.payments p
       where p.method = 'pix_asaas' and (
         (p.status in ('pending', 'refund_pending') and p.external_id is not null and p.created_at < now() - interval '1 minute'
           and (p.last_synced_at is null or p.last_synced_at < now() - interval '3 minutes'))
+        or (p.status = 'pending' and p.external_id is not null and p.pix_payload is null)
         or (p.status = 'creating' and p.created_at < now() - interval '3 minutes')
         or (p.remote_cancel_pending and p.external_id is not null))
       order by p.created_at limit greatest(1, least(p_limit, 200))) p), '[]'::jsonb);

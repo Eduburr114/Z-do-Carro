@@ -12,7 +12,8 @@ import { sessionCookieOptions } from '@/lib/supabase/cookie-options'
  * sessão de novo, e o banco decide por último (RLS e funções).
  */
 
-const PUBLIC_PREFIXES = ['/login', '/cadastro', '/recuperar', '/auth', '/termos', '/privacidade']
+// /api/webhooks e /api/cron não usam sessão: autenticam por token próprio.
+const PUBLIC_PREFIXES = ['/login', '/cadastro', '/recuperar', '/auth', '/termos', '/privacidade', '/api/webhooks', '/api/cron']
 
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV !== 'production'

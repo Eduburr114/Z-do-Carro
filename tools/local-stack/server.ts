@@ -7,6 +7,8 @@
  *   /rest/v1/rpc/:fn  chamadas RPC, executadas no PostgreSQL local com o papel e
  *                     as claims do JWT, como o PostgREST faz
  *
+ *   /asaas, /resend   emuladores de pagamento e e-mail (providers-mock.ts)
+ *
  * O aplicativo só usa RPC, então isto basta para desenvolver e para os testes
  * ponta a ponta. Em produção (e no CI) o sistema fala com o Supabase de verdade;
  * este arquivo não é carregado pelo aplicativo.
@@ -20,6 +22,7 @@ import { SignJWT, exportJWK, jwtVerify } from 'jose'
 import pg from 'pg'
 import { databaseUrl } from './db'
 import { callRpc, RpcError, type Claims } from './rpc'
+import { createProvidersMock } from './providers-mock'
 
 export const LOCAL_PUBLISHABLE_KEY = 'sb_publishable_local_somente_desenvolvimento'
 export const LOCAL_SECRET_KEY = 'sb_secret_local_somente_desenvolvimento'
@@ -70,6 +73,8 @@ export async function startLocalStack(options: { database: string; port: number;
   // tratamento o emulador cairia. O pool abre conexões novas sozinho.
   pool.on('error', () => undefined)
   const issuer = `http://127.0.0.1:${options.port}/auth/v1`
+  // Emuladores do Asaas e do Resend no mesmo endereço (/asaas e /resend).
+  const providers = createProvidersMock({ quiet: options.quiet })
   const recoveryTokens = new Map<string, { userId: string; expires: number }>()
   const outbox = new Map<string, string>()
 
@@ -399,6 +404,7 @@ export async function startLocalStack(options: { database: string; port: number;
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${options.port}`)
     try {
       if (req.method === 'OPTIONS') return send(res, 204, null)
+      if (await providers.handle(req, res)) return
       const apikey = req.headers.apikey
       if (url.pathname !== '/health' && apikey !== LOCAL_PUBLISHABLE_KEY && apikey !== LOCAL_SECRET_KEY) {
         throw new HttpError(401, 'no_api_key', 'No API key found in request')
